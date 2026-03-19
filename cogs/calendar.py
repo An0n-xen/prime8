@@ -1,7 +1,6 @@
 """Calendar cog — /meetings and /schedule commands."""
 
-import logging
-
+from utils.logger import get_logger
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -9,7 +8,7 @@ from discord.ext import commands
 from services import calendar_service
 from utils.embeds import event_list_embed, event_embed
 
-log = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Calendar(commands.Cog):
@@ -18,7 +17,9 @@ class Calendar(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="meetings", description="List your upcoming calendar events")
+    @app_commands.command(
+        name="meetings", description="List your upcoming calendar events"
+    )
     @app_commands.allowed_installs(guilds=True, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.describe(
@@ -38,7 +39,7 @@ class Calendar(commands.Cog):
                 max_results=count, days_ahead=days
             )
         except Exception as e:
-            log.error(f"Calendar API error: {e}")
+            logger.error(f"Calendar API error: {e}")
             return await interaction.followup.send(
                 "❌ Failed to fetch calendar events. Make sure you've authenticated with Google.\n"
                 "Run `python -m services.google_auth` to set up.",
@@ -74,9 +75,11 @@ class Calendar(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         # Parse attendees
-        attendee_list = [
-            email.strip() for email in attendees.split(",") if email.strip()
-        ] if attendees else None
+        attendee_list = (
+            [email.strip() for email in attendees.split(",") if email.strip()]
+            if attendees
+            else None
+        )
 
         try:
             created = await calendar_service.create_event(
@@ -89,7 +92,7 @@ class Calendar(commands.Cog):
                 location=location,
             )
         except Exception as e:
-            log.error(f"Calendar create error: {e}")
+            logger.error(f"Calendar create error: {e}")
             return await interaction.followup.send(
                 f"❌ Failed to create event: {e}", ephemeral=True
             )

@@ -1,7 +1,6 @@
 """Gmail cog — /emails command."""
 
-import logging
-
+from utils.logger import get_logger
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -10,7 +9,7 @@ from services import gmail_service
 from utils.embeds import email_list_embed, email_embed
 from utils.pagination import PaginatedView
 
-log = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Gmail(commands.Cog):
@@ -37,7 +36,7 @@ class Gmail(commands.Cog):
         try:
             messages = await gmail_service.list_messages(max_results=count, query=query)
         except Exception as e:
-            log.error(f"Gmail API error: {e}")
+            logger.error(f"Gmail API error: {e}")
             return await interaction.followup.send(
                 "❌ Failed to fetch emails. Make sure you've authenticated with Google.\n"
                 "Run `python -m services.google_auth` to set up.",

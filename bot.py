@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.logger import get_logger
-import config
+from config import settings as config
 
 logger = get_logger(__name__)
 
@@ -38,6 +38,8 @@ async def ping(interaction: discord.Interaction):
 
 
 async def main():
+    if not config.DISCORD_TOKEN:
+        raise ValueError("DISCORD_TOKEN environment variable is not set")
     async with bot:
         for ext in EXTENSIONS:
             try:

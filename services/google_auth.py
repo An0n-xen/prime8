@@ -19,7 +19,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-import config
+from config import settings as config
 
 TOKEN_FILE = config.TOKEN_DIR / "token.json"
 
@@ -29,7 +29,9 @@ def get_credentials() -> Credentials:
     creds = None
 
     if TOKEN_FILE.exists():
-        creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), config.GOOGLE_SCOPES)
+        creds = Credentials.from_authorized_user_file(
+            str(TOKEN_FILE), config.GOOGLE_SCOPES
+        )
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:

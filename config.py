@@ -1,29 +1,42 @@
-import os
 from pathlib import Path
-from dotenv import load_dotenv
+from typing import Final, Literal, Optional
+from pydantic import Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
 
-# Paths
-BASE_DIR = Path(__file__).parent
-TOKEN_DIR = BASE_DIR / os.getenv("GOOGLE_TOKEN_DIR", "data/tokens")
-CREDENTIALS_FILE = BASE_DIR / os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
+class Settings(BaseSettings):
+    DISCORD_TOKEN: Optional[str] = None
+    TIMEZONE: str = "UTC"
+    POLL_INTERVAL_SECONDS: int = 60
+    GOOGLE_TOKEN_DIR: str = "data/tokens"
+    GOOGLE_CREDENTIALS_FILE: str = "credentials.json"
 
-# Discord
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
-GUILD_ID = os.getenv("DISCORD_GUILD_ID")  # None = global slash commands (slow to register)
+    GOOGLE_SCOPES: list[str] = [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.events",
+    ]
 
-# Google OAuth scopes
-GOOGLE_SCOPES = [
-    "https://www.googleapis.com/auth/gmail.readonly",
-    "https://www.googleapis.com/auth/calendar.readonly",
-    "https://www.googleapis.com/auth/calendar.events",
-]
+    BASE_DIR: Path = Path(__file__).parent
 
-# Bot settings
-NOTIFICATION_CHANNEL_ID = int(os.getenv("NOTIFICATION_CHANNEL_ID", 0))
-POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", 60))
-TIMEZONE = os.getenv("TIMEZONE", "UTC")
+    @property
+    def TOKEN_DIR(self) -> Path:
+        return self.BASE_DIR / self.GOOGLE_TOKEN_DIR
 
-# Ensure token directory exists
-TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+    @property
+    def CREDENTIALS_FILE(self) -> Path:
+        return self.BASE_DIR / self.GOOGLE_CREDENTIALS_FILE
+
+    @model_validator(mode="after")
+    def ensure_dirs(self):
+        if not self.DISCORD_TOKEN:
+            raise ValueError(
+                "DISCORD_TOKEN is required; set it in the environment or .env file"
+            )
+        self.TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+        return self
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+
+settings = Settings()

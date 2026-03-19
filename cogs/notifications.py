@@ -6,17 +6,17 @@ since last check). For production with many users, consider Google Calendar
 push notifications instead (requires a public HTTPS endpoint).
 """
 
-import logging
+from utils.logger import get_logger
 from datetime import datetime, timezone
 
 import discord
 from discord.ext import commands, tasks
 
-import config
+from config import settings as config
 from services import calendar_service, gmail_service
 from utils.embeds import new_event_notification_embed, new_email_notification_embed
 
-log = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Notifications(commands.Cog):
@@ -33,7 +33,9 @@ class Notifications(commands.Cog):
         """Start the polling loops when the cog loads."""
         self.check_new_events.start()
         self.check_new_emails.start()
-        log.info(f"Notification poller started (interval: {config.POLL_INTERVAL_SECONDS}s)")
+        logger.info(
+            f"Notification poller started (interval: {config.POLL_INTERVAL_SECONDS}s)"
+        )
 
     async def cog_unload(self):
         """Stop the polling loops when the cog unloads."""
@@ -56,8 +58,12 @@ class Notifications(commands.Cog):
                 # Build notification
                 parsed = {
                     "summary": event.get("summary", "Untitled"),
-                    "start": event.get("start", {}).get("dateTime", event.get("start", {}).get("date", "")),
-                    "end": event.get("end", {}).get("dateTime", event.get("end", {}).get("date", "")),
+                    "start": event.get("start", {}).get(
+                        "dateTime", event.get("start", {}).get("date", "")
+                    ),
+                    "end": event.get("end", {}).get(
+                        "dateTime", event.get("end", {}).get("date", "")
+                    ),
                     "organizer": event.get("organizer", {}).get("email", ""),
                     "link": event.get("htmlLink", ""),
                 }
@@ -66,7 +72,7 @@ class Notifications(commands.Cog):
                 await self._send_notification(embed)
 
         except Exception as e:
-            log.error(f"Notification poll error: {e}")
+            logger.error(f"Notification poll error: {e}")
 
     @check_new_events.before_loop
     async def before_check(self):
@@ -77,9 +83,9 @@ class Notifications(commands.Cog):
         try:
             events = await calendar_service.get_new_events_since(self.last_check)
             self.seen_event_ids = {e.get("id") for e in events if e.get("id")}
-            log.info(f"Pre-loaded {len(self.seen_event_ids)} existing event(s)")
+            logger.info(f"Pre-loaded {len(self.seen_event_ids)} existing event(s)")
         except Exception as e:
-            log.warning(f"Failed to pre-load events: {e}")
+            logger.warning(f"Failed to pre-load events: {e}")
 
     # ── Gmail polling ────────────────────────────────────────────────
 
@@ -99,7 +105,7 @@ class Notifications(commands.Cog):
                 await self._send_notification(embed)
 
         except Exception as e:
-            log.error(f"Email notification poll error: {e}")
+            logger.error(f"Email notification poll error: {e}")
 
     @check_new_emails.before_loop
     async def before_email_check(self):
@@ -109,9 +115,9 @@ class Notifications(commands.Cog):
         try:
             emails = await gmail_service.get_new_messages_since(self.last_email_check)
             self.seen_email_ids = {e.get("id") for e in emails if e.get("id")}
-            log.info(f"Pre-loaded {len(self.seen_email_ids)} existing email(s)")
+            logger.info(f"Pre-loaded {len(self.seen_email_ids)} existing email(s)")
         except Exception as e:
-            log.warning(f"Failed to pre-load emails: {e}")
+            logger.warning(f"Failed to pre-load emails: {e}")
 
     async def _send_notification(self, embed: discord.Embed):
         """
@@ -127,13 +133,7 @@ class Notifications(commands.Cog):
                 await owner.send(embed=embed)
                 return
             except discord.Forbidden:
-                log.warning("Cannot DM bot owner — DMs might be disabled")
-
-        # Fall back to channel if configured
-        if config.NOTIFICATION_CHANNEL_ID:
-            channel = self.bot.get_channel(config.NOTIFICATION_CHANNEL_ID)
-            if channel:
-                await channel.send(embed=embed)
+                logger.warning("Cannot DM bot owner — DMs might be disabled")
 
 
 async def setup(bot: commands.Bot):
