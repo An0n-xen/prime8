@@ -1,0 +1,15 @@
+# Environment
+.env
+venv/
+__pycache__/
+*.pyc
+
+# Google OAuth
+credentials.json
+data/tokens/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+data

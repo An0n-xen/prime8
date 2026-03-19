@@ -1,0 +1,15 @@
+[project]
+name = "prime8"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "apscheduler>=3.10.0",
+    "colorlog>=6.10.1",
+    "discord-py>=2.3.0",
+    "google-api-python-client>=2.100.0",
+    "google-auth-httplib2>=0.2.0",
+    "google-auth-oauthlib>=1.2.0",
+    "python-dotenv>=1.0.0",
+]
