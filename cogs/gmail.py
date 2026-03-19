@@ -1,7 +1,7 @@
 """Gmail cog — /emails command."""
 
-from utils.logger import get_logger
 import discord
+from utils.logger import get_logger
 from discord import app_commands
 from discord.ext import commands
 
@@ -38,8 +38,7 @@ class Gmail(commands.Cog):
         except Exception as e:
             logger.error(f"Gmail API error: {e}")
             return await interaction.followup.send(
-                "❌ Failed to fetch emails. Make sure you've authenticated with Google.\n"
-                "Run `python -m services.google_auth` to set up.",
+                "❌ Failed to fetch emails. Make sure you've authenticated with Google.\n",
                 ephemeral=True,
             )
 

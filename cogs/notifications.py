@@ -37,6 +37,8 @@ class Notifications(commands.Cog):
             f"Notification poller started (interval: {config.POLL_INTERVAL_SECONDS}s)"
         )
 
+    # Todo Notify on modify events
+
     async def cog_unload(self):
         """Stop the polling loops when the cog unloads."""
         self.check_new_events.cancel()
@@ -82,12 +84,10 @@ class Notifications(commands.Cog):
         # Pre-populate seen events so we don't spam on first run
         try:
             events = await calendar_service.get_new_events_since(self.last_check)
-            self.seen_event_ids = {e.get("id") for e in events if e.get("id")}
+            self.seen_event_ids = {e["id"] for e in events if e.get("id")}
             logger.info(f"Pre-loaded {len(self.seen_event_ids)} existing event(s)")
         except Exception as e:
             logger.warning(f"Failed to pre-load events: {e}")
-
-    # ── Gmail polling ────────────────────────────────────────────────
 
     @tasks.loop(seconds=config.POLL_INTERVAL_SECONDS)
     async def check_new_emails(self):
@@ -114,7 +114,7 @@ class Notifications(commands.Cog):
 
         try:
             emails = await gmail_service.get_new_messages_since(self.last_email_check)
-            self.seen_email_ids = {e.get("id") for e in emails if e.get("id")}
+            self.seen_email_ids = {e["id"] for e in emails if e.get("id")}
             logger.info(f"Pre-loaded {len(self.seen_email_ids)} existing email(s)")
         except Exception as e:
             logger.warning(f"Failed to pre-load emails: {e}")

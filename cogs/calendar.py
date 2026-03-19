@@ -41,8 +41,7 @@ class Calendar(commands.Cog):
         except Exception as e:
             logger.error(f"Calendar API error: {e}")
             return await interaction.followup.send(
-                "❌ Failed to fetch calendar events. Make sure you've authenticated with Google.\n"
-                "Run `python -m services.google_auth` to set up.",
+                "❌ Failed to fetch calendar events. Make sure you've authenticated with Google.\n",
                 ephemeral=True,
             )
 
