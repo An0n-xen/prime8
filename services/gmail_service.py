@@ -1,15 +1,15 @@
 """Gmail API wrapper — keeps Google-specific logic out of the cog."""
 
 import asyncio
-import base64
 from datetime import datetime
 from email.utils import parseaddr
 from typing import Optional
 
-from services.google_auth import get_gmail_service
+from services.google_auth import credential_manager
 
 
 async def list_messages(
+    user_id: int,
     max_results: int = 10,
     query: str = "is:inbox",
 ) -> list[dict]:
@@ -18,9 +18,8 @@ async def list_messages(
 
     Returns a list of dicts with keys: id, subject, from_name, from_email, snippet, date
     """
-    service = get_gmail_service()
+    service = await credential_manager.get_gmail_service(user_id)
 
-    # Run sync Google client in a thread
     def _fetch():
         results = service.users().messages().list(
             userId="me", maxResults=max_results, q=query
@@ -45,6 +44,7 @@ async def list_messages(
                 "from_email": from_email,
                 "snippet": data.get("snippet", ""),
                 "date": headers.get("Date", ""),
+                "link": f"https://mail.google.com/mail/u/0/#inbox/{msg['id']}",
             })
 
         return detailed
@@ -52,9 +52,9 @@ async def list_messages(
     return await asyncio.to_thread(_fetch)
 
 
-async def get_message(message_id: str) -> Optional[dict]:
+async def get_message(user_id: int, message_id: str) -> Optional[dict]:
     """Fetch a single message's full content."""
-    service = get_gmail_service()
+    service = await credential_manager.get_gmail_service(user_id)
 
     def _fetch():
         return service.users().messages().get(
@@ -64,7 +64,7 @@ async def get_message(message_id: str) -> Optional[dict]:
     return await asyncio.to_thread(_fetch)
 
 
-async def get_new_messages_since(since: datetime, max_results: int = 20) -> list[dict]:
+async def get_new_messages_since(user_id: int, since: datetime, max_results: int = 20) -> list[dict]:
     """
     Fetch messages received after *since*.
 
@@ -73,4 +73,4 @@ async def get_new_messages_since(since: datetime, max_results: int = 20) -> list
     """
     epoch = int(since.timestamp())
     query = f"is:inbox after:{epoch}"
-    return await list_messages(max_results=max_results, query=query)
+    return await list_messages(user_id, max_results=max_results, query=query)

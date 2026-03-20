@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     POLL_INTERVAL_SECONDS: int = 60
     GOOGLE_TOKEN_DIR: str = "data/tokens"
     GOOGLE_CREDENTIALS_FILE: str = "credentials.json"
+    MAX_CONCURRENT_API_CALLS: int = 4
+    SERVICE_CACHE_TTL_SECONDS: int = 300
+    OAUTH_CALLBACK_PORT: int = 8090
+    STATE_DIR: str = "data/state"
 
     GOOGLE_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/gmail.readonly",
@@ -27,6 +31,10 @@ class Settings(BaseSettings):
     def CREDENTIALS_FILE(self) -> Path:
         return self.BASE_DIR / self.GOOGLE_CREDENTIALS_FILE
 
+    @property
+    def STATE_PATH(self) -> Path:
+        return self.BASE_DIR / self.STATE_DIR
+
     @model_validator(mode="after")
     def ensure_dirs(self):
         if not self.DISCORD_TOKEN:
@@ -34,6 +42,7 @@ class Settings(BaseSettings):
                 "DISCORD_TOKEN is required; set it in the environment or .env file"
             )
         self.TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+        self.STATE_PATH.mkdir(parents=True, exist_ok=True)
         return self
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

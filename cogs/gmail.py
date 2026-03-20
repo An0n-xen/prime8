@@ -5,6 +5,7 @@ from utils.logger import get_logger
 from discord import app_commands
 from discord.ext import commands
 
+from cogs.auth import require_auth
 from services import gmail_service
 from utils.embeds import email_list_embed, email_embed
 from utils.pagination import PaginatedView
@@ -33,8 +34,11 @@ class Gmail(commands.Cog):
     ):
         await interaction.response.defer(thinking=True)
 
+        if not await require_auth(interaction):
+            return
+
         try:
-            messages = await gmail_service.list_messages(max_results=count, query=query)
+            messages = await gmail_service.list_messages(interaction.user.id, max_results=count, query=query)
         except Exception as e:
             logger.error(f"Gmail API error: {e}")
             return await interaction.followup.send(

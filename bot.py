@@ -14,6 +14,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 EXTENSIONS = [
+    "cogs.auth",
     "cogs.gmail",
     "cogs.calendar",
     "cogs.notifications",
@@ -35,6 +36,22 @@ async def on_ready():
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("Pong! 🏓")
+
+
+@bot.tree.command(name="dm", description="Start a private DM conversation with the bot")
+@app_commands.allowed_installs(guilds=True, users=True)
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+async def dm(interaction: discord.Interaction):
+    # Check if we're already in a 1-on-1 DM with the bot
+    if isinstance(interaction.channel, discord.DMChannel) and interaction.channel.recipient == bot.user:
+        await interaction.response.send_message("You're already in a DM with me!")
+        return
+    try:
+        dm_channel = await interaction.user.create_dm()
+        await dm_channel.send("Hey! You can chat with me privately here. Use any of my slash commands or just send a message.")
+        await interaction.response.send_message("I've sent you a DM!", ephemeral=True)
+    except discord.Forbidden:
+        await interaction.response.send_message("I can't send you a DM. Please check your privacy settings.", ephemeral=True)
 
 
 async def main():

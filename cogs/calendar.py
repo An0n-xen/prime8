@@ -5,6 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from cogs.auth import require_auth
 from services import calendar_service
 from utils.embeds import event_list_embed, event_embed
 
@@ -34,9 +35,12 @@ class Calendar(commands.Cog):
     ):
         await interaction.response.defer(thinking=True)
 
+        if not await require_auth(interaction):
+            return
+
         try:
             events = await calendar_service.list_upcoming_events(
-                max_results=count, days_ahead=days
+                interaction.user.id, max_results=count, days_ahead=days
             )
         except Exception as e:
             logger.error(f"Calendar API error: {e}")
@@ -73,6 +77,9 @@ class Calendar(commands.Cog):
     ):
         await interaction.response.defer(thinking=True)
 
+        if not await require_auth(interaction):
+            return
+
         # Parse attendees
         attendee_list = (
             [email.strip() for email in attendees.split(",") if email.strip()]
@@ -82,6 +89,7 @@ class Calendar(commands.Cog):
 
         try:
             created = await calendar_service.create_event(
+                interaction.user.id,
                 summary=title,
                 start_time=start,
                 end_time=end,

@@ -8,6 +8,7 @@ def email_embed(email: dict) -> discord.Embed:
     """Build a Discord embed for a single email."""
     embed = discord.Embed(
         title=email["subject"][:256],
+        url=email.get("link", ""),
         description=email["snippet"][:4096] if email["snippet"] else "No preview available",
         color=0xEA4335,  # Gmail red
     )
@@ -29,9 +30,12 @@ def email_list_embed(emails: list[dict], query: str = "") -> discord.Embed:
     for i, email in enumerate(emails[:10], 1):
         from_display = email["from_name"] or email["from_email"]
         snippet = email["snippet"][:80] + "..." if len(email["snippet"]) > 80 else email["snippet"]
+        link = email.get("link", "")
+        subject = email["subject"][:100]
+        title = f"{i}. [{subject}]({link})" if link else f"{i}. {subject}"
         embed.add_field(
-            name=f"{i}. {email['subject'][:100]}",
-            value=f"**From:** {from_display}\n{snippet}",
+            name="\u200b",
+            value=f"**{title}**\n**From:** {from_display}\n{snippet}",
             inline=False,
         )
 
@@ -80,9 +84,12 @@ def event_list_embed(events: list[dict], days: int = 7) -> discord.Embed:
     for event in events[:15]:
         time_str = _format_time(event["start"])
         location = f" 📍 {event['location']}" if event.get("location") else ""
+        link = event.get("link", "")
+        summary = event["summary"][:100]
+        title = f"[{summary}]({link})" if link else summary
         embed.add_field(
-            name=event["summary"][:100],
-            value=f"🕐 {time_str}{location}",
+            name="\u200b",
+            value=f"**{title}**\n🕐 {time_str}{location}",
             inline=False,
         )
 
@@ -111,6 +118,7 @@ def new_email_notification_embed(email: dict) -> discord.Embed:
     """Build a notification embed for a newly received email."""
     embed = discord.Embed(
         title="📧 New Email",
+        url=email.get("link", ""),
         description=email["subject"][:256],
         color=0xEA4335,  # Gmail red
     )
