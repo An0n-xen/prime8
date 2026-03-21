@@ -5,6 +5,8 @@ from discord import app_commands
 from discord.ext import commands
 from utils.logger import get_logger
 from config import settings as config
+from services.vault_service import VaultService
+from services.google_auth import init_vault
 
 logger = get_logger(__name__)
 
@@ -55,8 +57,16 @@ async def dm(interaction: discord.Interaction):
 
 
 async def main():
-    if not config.DISCORD_TOKEN:
-        raise ValueError("DISCORD_TOKEN environment variable is not set")
+    # Initialize Vault and load secrets
+    vault_svc = VaultService(
+        addr=config.VAULT_ADDR,
+        role_id=config.VAULT_ROLE_ID,
+        secret_id=config.VAULT_SECRET_ID,
+    )
+    init_vault(vault_svc)
+    config.DISCORD_TOKEN = vault_svc.get_discord_token()
+    logger.info("Loaded secrets from Vault")
+
     async with bot:
         for ext in EXTENSIONS:
             try:

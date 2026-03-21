@@ -1,14 +1,15 @@
 """
 Google OAuth2 credential management — multi-user.
 
-Per-user tokens stored at data/tokens/{discord_user_id}.json.
+Per-user tokens stored in HashiCorp Vault at secret/prime8/tokens/{discord_user_id}.
 Cached service objects with TTL to avoid rebuilding on every call.
 """
 
 import asyncio
+import json
+import tempfile
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
 from aiohttp import web
 from google.auth.transport.requests import Request
@@ -20,6 +21,14 @@ from config import settings as config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Initialized in init_vault() from bot.py
+vault = None
+
+
+def init_vault(vault_service):
+    global vault
+    vault = vault_service
 
 
 @dataclass
@@ -39,11 +48,11 @@ class CredentialManager:
             self._locks[user_id] = asyncio.Lock()
         return self._locks[user_id]
 
-    def _token_path(self, user_id: int) -> Path:
-        return config.TOKEN_DIR / f"{user_id}.json"
-
     def has_credentials(self, user_id: int) -> bool:
-        return self._token_path(user_id).exists()
+        if user_id in self._credential_cache:
+            return True
+        token_data = vault.get_user_token(user_id)
+        return token_data is not None
 
     async def get_credentials(self, user_id: int) -> Credentials:
         lock = self._get_lock(user_id)
@@ -58,17 +67,15 @@ class CredentialManager:
                     self._save_credentials(user_id, creds)
                     return creds
 
-            # Load from disk
-            token_path = self._token_path(user_id)
-            if not token_path.exists():
+            # Load from Vault
+            token_data = await asyncio.to_thread(vault.get_user_token, user_id)
+            if not token_data:
                 raise FileNotFoundError(
                     f"No credentials for user {user_id}. Use /connect first."
                 )
 
-            creds = await asyncio.to_thread(
-                Credentials.from_authorized_user_file,
-                str(token_path),
-                config.GOOGLE_SCOPES,
+            creds = Credentials.from_authorized_user_info(
+                token_data, config.GOOGLE_SCOPES
             )
 
             if not creds.valid:
@@ -106,19 +113,16 @@ class CredentialManager:
         return await self._get_service(user_id, "calendar", "v3")
 
     def _save_credentials(self, user_id: int, creds: Credentials):
-        token_path = self._token_path(user_id)
-        token_path.write_text(creds.to_json())
+        token_data = json.loads(creds.to_json())
+        vault.save_user_token(user_id, token_data)
 
     def save_credentials(self, user_id: int, creds: Credentials):
         self._save_credentials(user_id, creds)
         self._credential_cache[user_id] = creds
 
     def remove_credentials(self, user_id: int):
-        token_path = self._token_path(user_id)
-        if token_path.exists():
-            token_path.unlink()
+        vault.delete_user_token(user_id)
         self._credential_cache.pop(user_id, None)
-        # Clear cached services
         for key in list(self._service_cache):
             if key[0] == user_id:
                 del self._service_cache[key]
@@ -135,19 +139,26 @@ class CredentialManager:
         - future: resolves with Credentials when callback is hit
         - runner: aiohttp AppRunner to clean up after
         """
-        if not config.CREDENTIALS_FILE.exists():
-            raise FileNotFoundError(
-                f"Missing {config.CREDENTIALS_FILE}. "
-                "Download it from Google Cloud Console."
-            )
+        # Load Google client credentials from Vault and write to a temp file
+        # (the Google SDK requires a file path)
+        google_creds = vault.get_google_credentials()
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        )
+        json.dump(google_creds, tmp)
+        tmp.close()
 
         redirect_uri = f"http://localhost:{config.OAUTH_CALLBACK_PORT}/callback"
 
         flow = Flow.from_client_secrets_file(
-            str(config.CREDENTIALS_FILE),
+            tmp.name,
             scopes=config.GOOGLE_SCOPES,
             redirect_uri=redirect_uri,
         )
+
+        # Clean up temp file
+        import os
+        os.unlink(tmp.name)
 
         auth_url, state = flow.authorization_url(
             access_type="offline",
@@ -182,7 +193,6 @@ class CredentialManager:
 
         runner = web.AppRunner(app)
 
-        # Store flow for manual exchange fallback
         self._pending_flows = getattr(self, "_pending_flows", {})
         self._pending_flows[user_id] = flow
 

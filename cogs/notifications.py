@@ -8,6 +8,7 @@ to avoid request bursts.
 
 import asyncio
 import json
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,41 +24,50 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-MAX_SEEN_IDS = 500
+SEEN_ID_TTL_HOURS = 72
 
 
 @dataclass
 class UserPollState:
     last_event_check: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_email_check: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    seen_event_ids: set[str] = field(default_factory=set)
-    seen_email_ids: set[str] = field(default_factory=set)
+    seen_event_ids: dict[str, float] = field(default_factory=dict)
+    seen_email_ids: dict[str, float] = field(default_factory=dict)
+    dirty: bool = False
 
 
 def _state_path(user_id: int, kind: str) -> Path:
     return config.STATE_PATH / f"{user_id}_seen_{kind}.json"
 
 
-def _load_seen_ids(user_id: int, kind: str) -> set[str]:
+def _load_seen_ids(user_id: int, kind: str) -> dict[str, float]:
     path = _state_path(user_id, kind)
     if path.exists():
         try:
             data = json.loads(path.read_text())
-            ids = set(data.get("ids", []))
-            # Cap to prevent unbounded growth
-            if len(ids) > MAX_SEEN_IDS:
-                ids = set(list(ids)[-MAX_SEEN_IDS:])
-            return ids
-        except (json.JSONDecodeError, OSError):
+            raw = data.get("ids", {})
+            # Backward compat: old format was a list of IDs
+            if isinstance(raw, list):
+                now = time.time()
+                return {str(id_): now for id_ in raw}
+            return {str(k): float(v) for k, v in raw.items()}
+        except (json.JSONDecodeError, OSError, ValueError):
             pass
-    return set()
+    return {}
 
 
-def _save_seen_ids(user_id: int, kind: str, ids: set[str]):
+def _save_seen_ids(user_id: int, kind: str, ids: dict[str, float]):
     path = _state_path(user_id, kind)
-    # Cap before saving
-    capped = list(ids)[-MAX_SEEN_IDS:] if len(ids) > MAX_SEEN_IDS else list(ids)
-    path.write_text(json.dumps({"ids": capped}))
+    path.write_text(json.dumps({"ids": ids}))
+
+
+def _prune_expired(ids: dict[str, float]) -> bool:
+    """Remove entries older than TTL. Returns True if any were removed."""
+    cutoff = time.time() - SEEN_ID_TTL_HOURS * 3600
+    expired = [k for k, ts in ids.items() if ts < cutoff]
+    for k in expired:
+        del ids[k]
+    return len(expired) > 0
 
 
 class Notifications(commands.Cog):
@@ -89,8 +99,10 @@ class Notifications(commands.Cog):
 
     def _persist_all_states(self):
         for user_id, state in self._user_states.items():
-            _save_seen_ids(user_id, "events", state.seen_event_ids)
-            _save_seen_ids(user_id, "emails", state.seen_email_ids)
+            if state.dirty:
+                _save_seen_ids(user_id, "events", state.seen_event_ids)
+                _save_seen_ids(user_id, "emails", state.seen_email_ids)
+                state.dirty = False
         logger.info(f"Persisted poll state for {len(self._user_states)} user(s)")
 
     @tasks.loop(seconds=config.POLL_INTERVAL_SECONDS)
@@ -124,16 +136,21 @@ class Notifications(commands.Cog):
 
         async def prepopulate(uid: int):
             state = self._get_state(uid)
+            now = time.time()
             try:
                 async with self._semaphore:
                     events = await calendar_service.get_new_events_since(uid, state.last_event_check)
-                    state.seen_event_ids.update(e["id"] for e in events if e.get("id"))
+                    for e in events:
+                        if e.get("id"):
+                            state.seen_event_ids[e["id"]] = now
             except Exception as e:
                 logger.warning(f"Failed to pre-load events for user {uid}: {e}")
             try:
                 async with self._semaphore:
                     emails = await gmail_service.get_new_messages_since(uid, state.last_email_check)
-                    state.seen_email_ids.update(e["id"] for e in emails if e.get("id"))
+                    for e in emails:
+                        if e.get("id"):
+                            state.seen_email_ids[e["id"]] = now
             except Exception as e:
                 logger.warning(f"Failed to pre-load emails for user {uid}: {e}")
 
@@ -145,6 +162,13 @@ class Notifications(commands.Cog):
 
     async def _poll_user(self, user_id: int):
         state = self._get_state(user_id)
+        now = time.time()
+
+        # Prune expired IDs
+        if _prune_expired(state.seen_event_ids):
+            state.dirty = True
+        if _prune_expired(state.seen_email_ids):
+            state.dirty = True
 
         # Poll calendar events
         try:
@@ -156,7 +180,8 @@ class Notifications(commands.Cog):
                 event_id = event.get("id")
                 if not event_id or event_id in state.seen_event_ids:
                     continue
-                state.seen_event_ids.add(event_id)
+                state.seen_event_ids[event_id] = now
+                state.dirty = True
                 parsed = {
                     "summary": event.get("summary", "Untitled"),
                     "start": event.get("start", {}).get(
@@ -183,15 +208,18 @@ class Notifications(commands.Cog):
                 email_id = email.get("id")
                 if not email_id or email_id in state.seen_email_ids:
                     continue
-                state.seen_email_ids.add(email_id)
+                state.seen_email_ids[email_id] = now
+                state.dirty = True
                 embed = new_email_notification_embed(email)
                 await self._send_notification(user_id, embed)
         except Exception as e:
             logger.error(f"Email poll error for user {user_id}: {e}")
 
-        # Persist after each user poll
-        _save_seen_ids(user_id, "events", state.seen_event_ids)
-        _save_seen_ids(user_id, "emails", state.seen_email_ids)
+        # Only persist when state actually changed
+        if state.dirty:
+            _save_seen_ids(user_id, "events", state.seen_event_ids)
+            _save_seen_ids(user_id, "emails", state.seen_email_ids)
+            state.dirty = False
 
     async def _send_notification(self, user_id: int, embed: discord.Embed):
         """DM a specific user with a notification embed."""
