@@ -6,6 +6,7 @@ from discord.ext import commands
 from utils.logger import get_logger
 from config import settings as config
 from services.google_auth import init_vault
+from utils.metrics import bot_ready, guild_count, start_metrics_server
 
 logger = get_logger(__name__)
 
@@ -25,6 +26,8 @@ EXTENSIONS = [
 @bot.event
 async def on_ready():
     logger.info(f"Logged in as {bot.user}")
+    bot_ready.set(1)
+    guild_count.set(len(bot.guilds))
 
     commands_before = bot.tree.get_commands()
     logger.info(f"Commands in tree before sync: {[c.name for c in commands_before]}")
@@ -83,6 +86,9 @@ async def main():
         logger.info("Using local secrets (dev mode)")
 
     init_vault(secret_svc)
+
+    start_metrics_server(config.METRICS_PORT)
+    logger.info(f"Prometheus metrics server started on port {config.METRICS_PORT}")
 
     if not config.DISCORD_TOKEN:
         logger.error("DISCORD_TOKEN is not set. Please check your configuration.")

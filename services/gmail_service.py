@@ -1,11 +1,13 @@
 """Gmail API wrapper — keeps Google-specific logic out of the cog."""
 
 import asyncio
+import time
 from datetime import datetime
 from email.utils import parseaddr
 from typing import Optional
 
 from services.google_auth import credential_manager
+from utils.metrics import google_api_calls, google_api_duration
 
 
 async def list_messages(
@@ -21,6 +23,7 @@ async def list_messages(
     service = await credential_manager.get_gmail_service(user_id)
 
     def _fetch():
+        t0 = time.monotonic()
         results = service.users().messages().list(
             userId="me", maxResults=max_results, q=query
         ).execute()
@@ -47,9 +50,15 @@ async def list_messages(
                 "link": f"https://mail.google.com/mail/u/0/#inbox/{msg['id']}",
             })
 
+        google_api_calls.labels(service="gmail", method="list_messages", status="success").inc()
+        google_api_duration.labels(service="gmail", method="list_messages").observe(time.monotonic() - t0)
         return detailed
 
-    return await asyncio.to_thread(_fetch)
+    try:
+        return await asyncio.to_thread(_fetch)
+    except Exception:
+        google_api_calls.labels(service="gmail", method="list_messages", status="error").inc()
+        raise
 
 
 async def get_message(user_id: int, message_id: str) -> Optional[dict]:
@@ -57,11 +66,19 @@ async def get_message(user_id: int, message_id: str) -> Optional[dict]:
     service = await credential_manager.get_gmail_service(user_id)
 
     def _fetch():
-        return service.users().messages().get(
+        t0 = time.monotonic()
+        result = service.users().messages().get(
             userId="me", id=message_id, format="full"
         ).execute()
+        google_api_calls.labels(service="gmail", method="get_message", status="success").inc()
+        google_api_duration.labels(service="gmail", method="get_message").observe(time.monotonic() - t0)
+        return result
 
-    return await asyncio.to_thread(_fetch)
+    try:
+        return await asyncio.to_thread(_fetch)
+    except Exception:
+        google_api_calls.labels(service="gmail", method="get_message", status="error").inc()
+        raise
 
 
 async def get_new_messages_since(user_id: int, since: datetime, max_results: int = 20) -> list[dict]:

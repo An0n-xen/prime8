@@ -21,6 +21,14 @@ from services import calendar_service, gmail_service
 from services.user_manager import user_manager
 from utils.embeds import new_event_notification_embed, new_email_notification_embed
 from utils.logger import get_logger
+from utils.metrics import (
+    poll_cycles,
+    poll_duration,
+    new_events_found,
+    new_emails_found,
+    notifications_sent,
+    registered_users,
+)
 
 logger = get_logger(__name__)
 
@@ -112,6 +120,7 @@ class Notifications(commands.Cog):
     @tasks.loop(seconds=config.POLL_INTERVAL_SECONDS)
     async def poll_all_users(self):
         user_ids = user_manager.get_all_user_ids()
+        registered_users.set(len(user_ids))
         if not user_ids:
             return
 
@@ -121,14 +130,20 @@ class Notifications(commands.Cog):
             await self._poll_user(uid)
 
         logger.info(f"Starting poll cycle for {len(user_ids)} user(s)")
+        cycle_start = time.time()
         results = await asyncio.gather(
             *(staggered_poll(i, uid) for i, uid in enumerate(user_ids)),
             return_exceptions=True,
         )
+        poll_duration.observe(time.time() - cycle_start)
 
+        has_error = False
         for uid, result in zip(user_ids, results):
             if isinstance(result, Exception):
+                has_error = True
                 logger.error(f"Poll error for user {uid}: {result}")
+
+        poll_cycles.labels(status="error" if has_error else "success").inc()
 
     @poll_all_users.before_loop
     async def before_poll(self):
@@ -204,6 +219,7 @@ class Notifications(commands.Cog):
                     continue
                 state.seen_event_ids[event_id] = now
                 state.dirty = True
+                new_events_found.inc()
                 parsed = {
                     "summary": event.get("summary", "Untitled"),
                     "start": event.get("start", {}).get(
@@ -216,7 +232,7 @@ class Notifications(commands.Cog):
                     "link": event.get("htmlLink", ""),
                 }
                 embed = new_event_notification_embed(parsed)
-                await self._send_notification(user_id, embed)
+                await self._send_notification(user_id, embed, "event")
         except Exception as e:
             logger.error(f"Calendar poll error for user {user_id}: {e}")
 
@@ -237,8 +253,9 @@ class Notifications(commands.Cog):
                     continue
                 state.seen_email_ids[email_id] = now
                 state.dirty = True
+                new_emails_found.inc()
                 embed = new_email_notification_embed(email)
-                await self._send_notification(user_id, embed)
+                await self._send_notification(user_id, embed, "email")
         except Exception as e:
             logger.error(f"Email poll error for user {user_id}: {e}")
 
@@ -248,16 +265,19 @@ class Notifications(commands.Cog):
             _save_seen_ids(user_id, "emails", state.seen_email_ids)
             state.dirty = False
 
-    async def _send_notification(self, user_id: int, embed: discord.Embed):
+    async def _send_notification(self, user_id: int, embed: discord.Embed, notif_type: str = "unknown"):
         """DM a specific user with a notification embed."""
         try:
             logger.info(f"Sending notification to user {user_id}")
             user = await self.bot.fetch_user(user_id)
             await user.send(embed=embed)
+            notifications_sent.labels(type=notif_type, status="success").inc()
         except discord.Forbidden:
             logger.warning(f"Cannot DM user {user_id} — DMs might be disabled")
+            notifications_sent.labels(type=notif_type, status="error").inc()
         except discord.NotFound:
             logger.warning(f"User {user_id} not found")
+            notifications_sent.labels(type=notif_type, status="error").inc()
 
 
 async def setup(bot: commands.Bot):

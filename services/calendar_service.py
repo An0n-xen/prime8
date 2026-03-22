@@ -1,10 +1,12 @@
 """Google Calendar API wrapper."""
 
 import asyncio
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from services.google_auth import credential_manager
+from utils.metrics import google_api_calls, google_api_duration
 
 
 async def list_upcoming_events(
@@ -24,6 +26,7 @@ async def list_upcoming_events(
     time_max = (now + timedelta(days=days_ahead)).isoformat()
 
     def _fetch():
+        t0 = time.monotonic()
         results = service.events().list(
             calendarId="primary",
             timeMin=time_min,
@@ -53,9 +56,15 @@ async def list_upcoming_events(
                 "link": event.get("htmlLink", ""),
             })
 
+        google_api_calls.labels(service="calendar", method="list_events", status="success").inc()
+        google_api_duration.labels(service="calendar", method="list_events").observe(time.monotonic() - t0)
         return parsed
 
-    return await asyncio.to_thread(_fetch)
+    try:
+        return await asyncio.to_thread(_fetch)
+    except Exception:
+        google_api_calls.labels(service="calendar", method="list_events", status="error").inc()
+        raise
 
 
 async def create_event(
@@ -83,13 +92,21 @@ async def create_event(
         event_body["attendees"] = [{"email": email} for email in attendees]
 
     def _create():
-        return service.events().insert(
+        t0 = time.monotonic()
+        result = service.events().insert(
             calendarId="primary",
             body=event_body,
             sendUpdates="all",  # Notify attendees
         ).execute()
+        google_api_calls.labels(service="calendar", method="create_event", status="success").inc()
+        google_api_duration.labels(service="calendar", method="create_event").observe(time.monotonic() - t0)
+        return result
 
-    return await asyncio.to_thread(_create)
+    try:
+        return await asyncio.to_thread(_create)
+    except Exception:
+        google_api_calls.labels(service="calendar", method="create_event", status="error").inc()
+        raise
 
 
 async def get_new_events_since(user_id: int, since: datetime) -> list[dict]:
@@ -100,6 +117,7 @@ async def get_new_events_since(user_id: int, since: datetime) -> list[dict]:
     service = await credential_manager.get_calendar_service(user_id)
 
     def _fetch():
+        t0 = time.monotonic()
         results = service.events().list(
             calendarId="primary",
             updatedMin=since.isoformat(),
@@ -107,6 +125,12 @@ async def get_new_events_since(user_id: int, since: datetime) -> list[dict]:
             orderBy="startTime",
             showDeleted=False,
         ).execute()
+        google_api_calls.labels(service="calendar", method="get_new_events", status="success").inc()
+        google_api_duration.labels(service="calendar", method="get_new_events").observe(time.monotonic() - t0)
         return results.get("items", [])
 
-    return await asyncio.to_thread(_fetch)
+    try:
+        return await asyncio.to_thread(_fetch)
+    except Exception:
+        google_api_calls.labels(service="calendar", method="get_new_events", status="error").inc()
+        raise
