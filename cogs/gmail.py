@@ -38,7 +38,15 @@ class Gmail(commands.Cog):
             return
 
         try:
-            messages = await gmail_service.list_messages(interaction.user.id, max_results=count, query=query)
+            logger.info(
+                f"email command: count={count} query='{query}' for user {interaction.user.id}"
+            )
+            messages = await gmail_service.list_messages(
+                interaction.user.id, max_results=count, query=query
+            )
+            logger.info(
+                f"Fetched {len(messages)} emails for user {interaction.user.id}"
+            )
         except Exception as e:
             logger.error(f"Gmail API error: {e}")
             return await interaction.followup.send(

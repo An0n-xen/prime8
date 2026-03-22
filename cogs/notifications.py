@@ -29,8 +29,12 @@ SEEN_ID_TTL_HOURS = 72
 
 @dataclass
 class UserPollState:
-    last_event_check: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    last_email_check: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_event_check: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+    last_email_check: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
     seen_event_ids: dict[str, float] = field(default_factory=dict)
     seen_email_ids: dict[str, float] = field(default_factory=dict)
     dirty: bool = False
@@ -116,6 +120,7 @@ class Notifications(commands.Cog):
                 await asyncio.sleep(index * 0.5)
             await self._poll_user(uid)
 
+        logger.info(f"Starting poll cycle for {len(user_ids)} user(s)")
         results = await asyncio.gather(
             *(staggered_poll(i, uid) for i, uid in enumerate(user_ids)),
             return_exceptions=True,
@@ -138,16 +143,26 @@ class Notifications(commands.Cog):
             state = self._get_state(uid)
             now = time.time()
             try:
+                logger.info(
+                    f"Pre-loading events for user {uid} since {state.last_event_check}"
+                )
                 async with self._semaphore:
-                    events = await calendar_service.get_new_events_since(uid, state.last_event_check)
+                    events = await calendar_service.get_new_events_since(
+                        uid, state.last_event_check
+                    )
                     for e in events:
                         if e.get("id"):
                             state.seen_event_ids[e["id"]] = now
             except Exception as e:
                 logger.warning(f"Failed to pre-load events for user {uid}: {e}")
             try:
+                logger.info(
+                    f"Pre-loading emails for user {uid} since {state.last_email_check}"
+                )
                 async with self._semaphore:
-                    emails = await gmail_service.get_new_messages_since(uid, state.last_email_check)
+                    emails = await gmail_service.get_new_messages_since(
+                        uid, state.last_email_check
+                    )
                     for e in emails:
                         if e.get("id"):
                             state.seen_email_ids[e["id"]] = now
@@ -166,14 +181,21 @@ class Notifications(commands.Cog):
 
         # Prune expired IDs
         if _prune_expired(state.seen_event_ids):
+            logger.info(f"Pruned expired event IDs for user {user_id}")
             state.dirty = True
         if _prune_expired(state.seen_email_ids):
+            logger.info(f"Pruned expired email IDs for user {user_id}")
             state.dirty = True
 
         # Poll calendar events
         try:
+            logger.info(
+                f"Polling calendar for user {user_id} since {state.last_event_check}"
+            )
             async with self._semaphore:
-                events = await calendar_service.get_new_events_since(user_id, state.last_event_check)
+                events = await calendar_service.get_new_events_since(
+                    user_id, state.last_event_check
+                )
             state.last_event_check = datetime.now(timezone.utc)
 
             for event in events:
@@ -200,8 +222,13 @@ class Notifications(commands.Cog):
 
         # Poll emails
         try:
+            logger.info(
+                f"Polling Gmail for user {user_id} since {state.last_email_check}"
+            )
             async with self._semaphore:
-                emails = await gmail_service.get_new_messages_since(user_id, state.last_email_check)
+                emails = await gmail_service.get_new_messages_since(
+                    user_id, state.last_email_check
+                )
             state.last_email_check = datetime.now(timezone.utc)
 
             for email in emails:
@@ -224,6 +251,7 @@ class Notifications(commands.Cog):
     async def _send_notification(self, user_id: int, embed: discord.Embed):
         """DM a specific user with a notification embed."""
         try:
+            logger.info(f"Sending notification to user {user_id}")
             user = await self.bot.fetch_user(user_id)
             await user.send(embed=embed)
         except discord.Forbidden:

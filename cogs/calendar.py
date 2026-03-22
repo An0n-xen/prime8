@@ -7,7 +7,7 @@ from discord.ext import commands
 
 from cogs.auth import require_auth
 from services import calendar_service
-from utils.embeds import event_list_embed, event_embed
+from utils.embeds import event_list_embed
 
 logger = get_logger(__name__)
 
@@ -42,6 +42,8 @@ class Calendar(commands.Cog):
             events = await calendar_service.list_upcoming_events(
                 interaction.user.id, max_results=count, days_ahead=days
             )
+            logger.info("meeting command: days=%d count=%d", days, count)
+            logger.info(f"Fetched {len(events)} events for user {interaction.user.id}")
         except Exception as e:
             logger.error(f"Calendar API error: {e}")
             return await interaction.followup.send(
@@ -97,6 +99,9 @@ class Calendar(commands.Cog):
                 attendees=attendee_list,
                 description=description,
                 location=location,
+            )
+            logger.info(
+                f"Created event for user {interaction.user.id}: {created.get('id')}"
             )
         except Exception as e:
             logger.error(f"Calendar create error: {e}")
