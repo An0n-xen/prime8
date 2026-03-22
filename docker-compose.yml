@@ -10,7 +10,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "9090:9090"
+      - "9091:9091"
     volumes:
       - prime8-data:/app/data
     networks:
@@ -18,7 +18,7 @@ services:
     labels:
       - "app=prime8"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9091/')"]
       interval: 30s
       timeout: 5s
       retries: 3

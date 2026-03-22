@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_API_CALLS: int = 4
     SERVICE_CACHE_TTL_SECONDS: int = 300
     OAUTH_CALLBACK_PORT: int = 8090
-    METRICS_PORT: int = 9090
+    METRICS_PORT: int = 9091
     STATE_DIR: str = "data/state"
 
     GOOGLE_SCOPES: list[str] = [
