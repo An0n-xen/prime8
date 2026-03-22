@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     POLL_INTERVAL_SECONDS: int = 60
     MAX_CONCURRENT_API_CALLS: int = 4
     SERVICE_CACHE_TTL_SECONDS: int = 300
+    OAUTH_CALLBACK_HOST: str = "localhost"
     OAUTH_CALLBACK_PORT: int = 8090
     METRICS_PORT: int = 9091
     STATE_DIR: str = "data/state"
