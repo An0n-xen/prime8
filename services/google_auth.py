@@ -164,9 +164,7 @@ class CredentialManager:
                 "Vault service not initialized. Call init_vault() first."
             )
         google_creds = vault.get_google_credentials()
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        )  # noqa: SIM115
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)  # noqa: SIM115
         json.dump(google_creds, tmp)
         tmp.close()
 
