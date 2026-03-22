@@ -2,8 +2,7 @@
 
 import asyncio
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from services.google_auth import credential_manager
 from utils.metrics import google_api_calls, google_api_duration
@@ -21,7 +20,7 @@ async def list_upcoming_events(
     """
     service = await credential_manager.get_calendar_service(user_id)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     time_min = now.isoformat()
     time_max = (now + timedelta(days=days_ahead)).isoformat()
 
@@ -73,7 +72,7 @@ async def create_event(
     start_time: str,        # ISO 8601 datetime string
     end_time: str,           # ISO 8601 datetime string
     timezone: str = "UTC",
-    attendees: Optional[list[str]] = None,
+    attendees: list[str] | None = None,
     description: str = "",
     location: str = "",
 ) -> dict:
@@ -89,7 +88,7 @@ async def create_event(
     }
 
     if attendees:
-        event_body["attendees"] = [{"email": email} for email in attendees]
+        event_body["attendees"] = [{"email": email} for email in attendees]  # type: ignore[misc]
 
     def _create():
         t0 = time.monotonic()

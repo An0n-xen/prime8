@@ -8,9 +8,9 @@ from discord.ext import commands
 
 from cogs.auth import require_auth
 from services import gmail_service
-from utils.embeds import email_list_embed, email_embed
+from utils.embeds import email_embed, email_list_embed
 from utils.logger import get_logger
-from utils.metrics import command_invocations, command_duration
+from utils.metrics import command_duration, command_invocations
 from utils.pagination import PaginatedView
 
 logger = get_logger(__name__)

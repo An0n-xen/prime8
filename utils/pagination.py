@@ -1,7 +1,7 @@
 """Paginated embed view — lets users scroll through email/event lists."""
 
+
 import discord
-from typing import Callable
 
 
 class PaginatedView(discord.ui.View):

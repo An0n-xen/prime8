@@ -10,7 +10,7 @@ import asyncio
 import json
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import discord
@@ -19,14 +19,14 @@ from discord.ext import commands, tasks
 from config import settings as config
 from services import calendar_service, gmail_service
 from services.user_manager import user_manager
-from utils.embeds import new_event_notification_embed, new_email_notification_embed
+from utils.embeds import new_email_notification_embed, new_event_notification_embed
 from utils.logger import get_logger
 from utils.metrics import (
+    new_emails_found,
+    new_events_found,
+    notifications_sent,
     poll_cycles,
     poll_duration,
-    new_events_found,
-    new_emails_found,
-    notifications_sent,
     registered_users,
 )
 
@@ -38,10 +38,10 @@ SEEN_ID_TTL_HOURS = 72
 @dataclass
 class UserPollState:
     last_event_check: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(UTC)
     )
     last_email_check: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(UTC)
     )
     seen_event_ids: dict[str, float] = field(default_factory=dict)
     seen_email_ids: dict[str, float] = field(default_factory=dict)
@@ -138,7 +138,7 @@ class Notifications(commands.Cog):
         poll_duration.observe(time.time() - cycle_start)
 
         has_error = False
-        for uid, result in zip(user_ids, results):
+        for uid, result in zip(user_ids, results, strict=False):
             if isinstance(result, Exception):
                 has_error = True
                 logger.error(f"Poll error for user {uid}: {result}")
@@ -178,11 +178,11 @@ class Notifications(commands.Cog):
                     emails = await gmail_service.get_new_messages_since(
                         uid, state.last_email_check
                     )
-                    for e in emails:
-                        if e.get("id"):
-                            state.seen_email_ids[e["id"]] = now
-            except Exception as e:
-                logger.warning(f"Failed to pre-load emails for user {uid}: {e}")
+                    for msg in emails:
+                        if msg.get("id"):
+                            state.seen_email_ids[msg["id"]] = now
+            except Exception as exc:
+                logger.warning(f"Failed to pre-load emails for user {uid}: {exc}")
 
         await asyncio.gather(
             *(prepopulate(uid) for uid in user_ids),
@@ -211,7 +211,7 @@ class Notifications(commands.Cog):
                 events = await calendar_service.get_new_events_since(
                     user_id, state.last_event_check
                 )
-            state.last_event_check = datetime.now(timezone.utc)
+            state.last_event_check = datetime.now(UTC)
 
             for event in events:
                 event_id = event.get("id")
@@ -245,7 +245,7 @@ class Notifications(commands.Cog):
                 emails = await gmail_service.get_new_messages_since(
                     user_id, state.last_email_check
                 )
-            state.last_email_check = datetime.now(timezone.utc)
+            state.last_email_check = datetime.now(UTC)
 
             for email in emails:
                 email_id = email.get("id")

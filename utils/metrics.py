@@ -2,16 +2,16 @@
 
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
-# ── Bot status ──
+# -- Bot status --
 bot_ready = Gauge("prime8_bot_ready", "Whether the bot is connected to Discord")
 guild_count = Gauge("prime8_guild_count", "Number of guilds the bot is in")
 registered_users = Gauge("prime8_registered_users", "Number of registered users")
 
-# ── Slash commands ──
+# -- Slash commands --
 command_invocations = Counter(
     "prime8_command_invocations_total",
     "Total slash command invocations",
-    ["command", "status"],  # status: success / error
+    ["command", "status"],
 )
 command_duration = Histogram(
     "prime8_command_duration_seconds",
@@ -20,11 +20,11 @@ command_duration = Histogram(
     buckets=(0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 )
 
-# ── Google API calls ──
+# -- Google API calls --
 google_api_calls = Counter(
     "prime8_google_api_calls_total",
     "Total Google API calls",
-    ["service", "method", "status"],  # service: gmail/calendar
+    ["service", "method", "status"],
 )
 google_api_duration = Histogram(
     "prime8_google_api_duration_seconds",
@@ -33,11 +33,11 @@ google_api_duration = Histogram(
     buckets=(0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 )
 
-# ── Notification polling ──
+# -- Notification polling --
 poll_cycles = Counter(
     "prime8_poll_cycles_total",
     "Total notification poll cycles",
-    ["status"],  # success / error
+    ["status"],
 )
 poll_duration = Histogram(
     "prime8_poll_duration_seconds",
@@ -54,7 +54,7 @@ new_emails_found = Counter(
 notifications_sent = Counter(
     "prime8_notifications_sent_total",
     "Notifications sent to users",
-    ["type", "status"],  # type: event/email, status: success/error
+    ["type", "status"],
 )
 
 

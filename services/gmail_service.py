@@ -4,7 +4,6 @@ import asyncio
 import time
 from datetime import datetime
 from email.utils import parseaddr
-from typing import Optional
 
 from services.google_auth import credential_manager
 from utils.metrics import google_api_calls, google_api_duration
@@ -61,7 +60,7 @@ async def list_messages(
         raise
 
 
-async def get_message(user_id: int, message_id: str) -> Optional[dict]:
+async def get_message(user_id: int, message_id: str) -> dict | None:
     """Fetch a single message's full content."""
     service = await credential_manager.get_gmail_service(user_id)
 

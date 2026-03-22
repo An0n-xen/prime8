@@ -10,7 +10,7 @@ from cogs.auth import require_auth
 from services import calendar_service
 from utils.embeds import event_list_embed
 from utils.logger import get_logger
-from utils.metrics import command_invocations, command_duration
+from utils.metrics import command_duration, command_invocations
 
 logger = get_logger(__name__)
 

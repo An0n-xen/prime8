@@ -1,0 +1,13 @@
+.venv/
+.git/
+.github/
+.claude/
+__pycache__/
+*.pyc
+data/
+.env
+.env.example
+*.md
+.gitignore
+.mcp.json
+credentials.json
