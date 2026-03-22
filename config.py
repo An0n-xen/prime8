@@ -1,17 +1,22 @@
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Vault connection (loaded from .env)
+    # "dev" = local .env + file-based tokens, "prod" = HashiCorp Vault
+    MODE: Literal["dev", "prod"] = "dev"
+
+    # Vault connection (required in prod mode only)
     VAULT_ADDR: str = ""
     VAULT_ROLE_ID: str = ""
     VAULT_SECRET_ID: str = ""
 
-    # Set at runtime after Vault loads
+    # Dev mode: loaded directly from .env
     DISCORD_TOKEN: Optional[str] = None
+    GOOGLE_CREDENTIALS_FILE: str = "data/credentials.json"
+    GOOGLE_TOKEN_DIR: str = "data/tokens"
 
     TIMEZONE: str = "UTC"
     POLL_INTERVAL_SECONDS: int = 60
@@ -32,13 +37,32 @@ class Settings(BaseSettings):
     def STATE_PATH(self) -> Path:
         return self.BASE_DIR / self.STATE_DIR
 
+    @property
+    def TOKEN_PATH(self) -> Path:
+        return self.BASE_DIR / self.GOOGLE_TOKEN_DIR
+
+    @property
+    def CREDENTIALS_PATH(self) -> Path:
+        return self.BASE_DIR / self.GOOGLE_CREDENTIALS_FILE
+
     @model_validator(mode="after")
     def ensure_dirs(self):
-        if not self.VAULT_ADDR or not self.VAULT_ROLE_ID or not self.VAULT_SECRET_ID:
-            raise ValueError(
-                "VAULT_ADDR, VAULT_ROLE_ID, and VAULT_SECRET_ID are required; "
-                "set them in the environment or .env file"
-            )
+        if self.MODE == "prod":
+            if (
+                not self.VAULT_ADDR
+                or not self.VAULT_ROLE_ID
+                or not self.VAULT_SECRET_ID
+            ):
+                raise ValueError(
+                    "VAULT_ADDR, VAULT_ROLE_ID, and VAULT_SECRET_ID are required in prod mode; "
+                    "set them in the environment or .env file"
+                )
+        else:
+            if not self.DISCORD_TOKEN:
+                raise ValueError(
+                    "DISCORD_TOKEN is required in dev mode; set it in .env"
+                )
+            self.TOKEN_PATH.mkdir(parents=True, exist_ok=True)
         self.STATE_PATH.mkdir(parents=True, exist_ok=True)
         return self
 
