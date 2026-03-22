@@ -13,7 +13,11 @@ from dataclasses import dataclass
 
 from aiohttp import web
 from google.auth.transport.requests import Request
+from google.auth.credentials import Credentials as BaseCredentials
 from google.oauth2.credentials import Credentials
+from google.auth.external_account_authorized_user import (
+    Credentials as ExternalAccountCredentials,
+)
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
@@ -51,6 +55,8 @@ class CredentialManager:
     def has_credentials(self, user_id: int) -> bool:
         if user_id in self._credential_cache:
             return True
+        if vault is None:
+            return False
         token_data = vault.get_user_token(user_id)
         return token_data is not None
 
@@ -68,6 +74,10 @@ class CredentialManager:
                     return creds
 
             # Load from Vault
+            if vault is None:
+                raise RuntimeError(
+                    "Vault service not initialized. Call init_vault() first."
+                )
             token_data = await asyncio.to_thread(vault.get_user_token, user_id)
             if not token_data:
                 raise FileNotFoundError(
@@ -112,15 +122,23 @@ class CredentialManager:
     async def get_calendar_service(self, user_id: int):
         return await self._get_service(user_id, "calendar", "v3")
 
-    def _save_credentials(self, user_id: int, creds: Credentials):
+    def _save_credentials(self, user_id: int, creds: BaseCredentials):
+        if vault is None:
+            raise RuntimeError(
+                "Vault service not initialized. Call init_vault() first."
+            )
         token_data = json.loads(creds.to_json())
         vault.save_user_token(user_id, token_data)
 
-    def save_credentials(self, user_id: int, creds: Credentials):
+    def save_credentials(self, user_id: int, creds: BaseCredentials):
         self._save_credentials(user_id, creds)
-        self._credential_cache[user_id] = creds
+        self._credential_cache[user_id] = creds  # type: ignore
 
     def remove_credentials(self, user_id: int):
+        if vault is None:
+            raise RuntimeError(
+                "Vault service not initialized. Call init_vault() first."
+            )
         vault.delete_user_token(user_id)
         self._credential_cache.pop(user_id, None)
         for key in list(self._service_cache):
@@ -141,10 +159,12 @@ class CredentialManager:
         """
         # Load Google client credentials from Vault and write to a temp file
         # (the Google SDK requires a file path)
+        if vault is None:
+            raise RuntimeError(
+                "Vault service not initialized. Call init_vault() first."
+            )
         google_creds = vault.get_google_credentials()
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        )
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
         json.dump(google_creds, tmp)
         tmp.close()
 
@@ -158,6 +178,7 @@ class CredentialManager:
 
         # Clean up temp file
         import os
+
         os.unlink(tmp.name)
 
         auth_url, state = flow.authorization_url(
@@ -166,7 +187,9 @@ class CredentialManager:
         )
 
         loop = asyncio.get_event_loop()
-        future: asyncio.Future[Credentials] = loop.create_future()
+        future: asyncio.Future[Credentials | ExternalAccountCredentials] = (
+            loop.create_future()
+        )
 
         app = web.Application()
 
