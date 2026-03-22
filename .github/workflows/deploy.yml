@@ -39,6 +39,12 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            # First-time setup: clone repo, create network
+            if [ ! -d /opt/prime8 ]; then
+              git clone https://github.com/An0n-xen/prime8.git /opt/prime8
+            fi
+            docker network create monitoring 2>/dev/null || true
+
             cd /opt/prime8
             git pull origin main
             docker compose build --no-cache
