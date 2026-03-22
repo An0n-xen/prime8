@@ -1,11 +1,11 @@
 """Timezone and time formatting helpers."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 
 def now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def to_timezone(dt: datetime, tz_name: str = "UTC") -> datetime:
@@ -23,7 +23,7 @@ def human_delta(dt: datetime) -> str:
     """Return a human-readable 'in X hours/days' string."""
     now = now_utc()
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
 
     delta = dt - now
 

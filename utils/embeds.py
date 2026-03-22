@@ -1,7 +1,8 @@
 """Discord embed builders for emails and calendar events."""
 
-import discord
 from datetime import datetime
+
+import discord
 
 
 def email_embed(email: dict) -> discord.Embed:

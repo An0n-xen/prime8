@@ -1,6 +1,7 @@
 """Calendar cog — /meetings and /schedule commands."""
 
-from utils.logger import get_logger
+import time
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -8,6 +9,8 @@ from discord.ext import commands
 from cogs.auth import require_auth
 from services import calendar_service
 from utils.embeds import event_list_embed
+from utils.logger import get_logger
+from utils.metrics import command_duration, command_invocations
 
 logger = get_logger(__name__)
 
@@ -33,6 +36,7 @@ class Calendar(commands.Cog):
         days: app_commands.Range[int, 1, 30] = 7,
         count: app_commands.Range[int, 1, 20] = 10,
     ):
+        start = time.monotonic()
         await interaction.response.defer(thinking=True)
 
         if not await require_auth(interaction):
@@ -46,6 +50,8 @@ class Calendar(commands.Cog):
             logger.info(f"Fetched {len(events)} events for user {interaction.user.id}")
         except Exception as e:
             logger.error(f"Calendar API error: {e}")
+            command_invocations.labels(command="meetings", status="error").inc()
+            command_duration.labels(command="meetings").observe(time.monotonic() - start)
             return await interaction.followup.send(
                 "❌ Failed to fetch calendar events. Make sure you've authenticated with Google.\n",
                 ephemeral=True,
@@ -53,6 +59,8 @@ class Calendar(commands.Cog):
 
         embed = event_list_embed(events, days=days)
         await interaction.followup.send(embed=embed)
+        command_invocations.labels(command="meetings", status="success").inc()
+        command_duration.labels(command="meetings").observe(time.monotonic() - start)
 
     @app_commands.command(name="schedule", description="Create a new calendar event")
     @app_commands.allowed_installs(guilds=True, users=True)
@@ -77,6 +85,7 @@ class Calendar(commands.Cog):
         description: str = "",
         tz: str = "UTC",
     ):
+        t0 = time.monotonic()
         await interaction.response.defer(thinking=True)
 
         if not await require_auth(interaction):
@@ -105,6 +114,8 @@ class Calendar(commands.Cog):
             )
         except Exception as e:
             logger.error(f"Calendar create error: {e}")
+            command_invocations.labels(command="schedule", status="error").inc()
+            command_duration.labels(command="schedule").observe(time.monotonic() - t0)
             return await interaction.followup.send(
                 f"❌ Failed to create event: {e}", ephemeral=True
             )
@@ -125,6 +136,8 @@ class Calendar(commands.Cog):
             embed.add_field(name="Location", value=location, inline=False)
 
         await interaction.followup.send(embed=embed)
+        command_invocations.labels(command="schedule", status="success").inc()
+        command_duration.labels(command="schedule").observe(time.monotonic() - t0)
 
 
 async def setup(bot: commands.Bot):

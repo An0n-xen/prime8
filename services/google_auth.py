@@ -12,12 +12,12 @@ import time
 from dataclasses import dataclass
 
 from aiohttp import web
-from google.auth.transport.requests import Request
 from google.auth.credentials import Credentials as BaseCredentials
-from google.oauth2.credentials import Credentials
 from google.auth.external_account_authorized_user import (
     Credentials as ExternalAccountCredentials,
 )
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
@@ -127,7 +127,7 @@ class CredentialManager:
             raise RuntimeError(
                 "Vault service not initialized. Call init_vault() first."
             )
-        token_data = json.loads(creds.to_json())
+        token_data = json.loads(creds.to_json())  # type: ignore[attr-defined]
         vault.save_user_token(user_id, token_data)
 
     def save_credentials(self, user_id: int, creds: BaseCredentials):
@@ -164,7 +164,7 @@ class CredentialManager:
                 "Vault service not initialized. Call init_vault() first."
             )
         google_creds = vault.get_google_credentials()
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)  # noqa: SIM115
         json.dump(google_creds, tmp)
         tmp.close()
 

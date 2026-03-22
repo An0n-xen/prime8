@@ -93,7 +93,7 @@ class Auth(commands.Cog):
                 "Successfully connected your Google account!",
                 ephemeral=True,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # Manual fallback — prompt for code
             logger.info(f"OAuth callback timed out for user {user_id}")
             await interaction.followup.send(

@@ -1,0 +1,32 @@
+services:
+  prime8:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prime8-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9090:9090"
+    volumes:
+      - prime8-data:/app/data
+    networks:
+      - monitoring
+    labels:
+      - "app=prime8"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  prime8-data:
+
+networks:
+  monitoring:
+    external: true

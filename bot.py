@@ -1,11 +1,16 @@
 from __future__ import annotations
+
 import asyncio
+import signal
+
 import discord
 from discord import app_commands
 from discord.ext import commands
-from utils.logger import get_logger
+
 from config import settings as config
 from services.google_auth import init_vault
+from utils.logger import get_logger
+from utils.metrics import bot_ready, guild_count, start_metrics_server
 
 logger = get_logger(__name__)
 
@@ -25,6 +30,8 @@ EXTENSIONS = [
 @bot.event
 async def on_ready():
     logger.info(f"Logged in as {bot.user}")
+    bot_ready.set(1)
+    guild_count.set(len(bot.guilds))
 
     commands_before = bot.tree.get_commands()
     logger.info(f"Commands in tree before sync: {[c.name for c in commands_before]}")
@@ -84,9 +91,25 @@ async def main():
 
     init_vault(secret_svc)
 
+    start_metrics_server(config.METRICS_PORT)
+    logger.info(f"Prometheus metrics server started on port {config.METRICS_PORT}")
+
     if not config.DISCORD_TOKEN:
         logger.error("DISCORD_TOKEN is not set. Please check your configuration.")
         return
+
+    # Graceful shutdown on SIGTERM/SIGINT (Docker stop)
+    loop = asyncio.get_running_loop()
+
+    async def shutdown():
+        logger.info("Received shutdown signal, closing bot...")
+        await bot.close()
+
+    try:
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown()))
+    except NotImplementedError:
+        pass  # Windows: signal handlers not supported on ProactorEventLoop
 
     async with bot:
         for ext in EXTENSIONS:

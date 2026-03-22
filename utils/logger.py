@@ -1,5 +1,8 @@
 from __future__ import annotations
+
 import logging
+import os
+
 import colorlog
 
 LOG_FORMAT = (
@@ -19,17 +22,23 @@ LOG_COLORS = {
     "CRITICAL": "bold_red",
 }
 
-def get_logger(
-    name: str,
-    level: int | str = 'INFO',
-) -> logging.Logger:
+# Read MODE early (before config is fully loaded) to avoid circular imports
+_MODE = os.getenv("MODE", "dev").lower()
 
-    logger = logging.getLogger(name)
 
-    if logger.handlers:
-        return logger 
-    
-    logger.setLevel(level)
+def _make_handler() -> logging.Handler:
+    if _MODE == "prod":
+        from pythonjsonlogger.json import JsonFormatter
+
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            JsonFormatter(
+                fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
+                datefmt=DATEFMT,
+                rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
+            )
+        )
+        return handler
 
     handler = colorlog.StreamHandler()
     handler.setFormatter(
@@ -41,7 +50,21 @@ def get_logger(
             style="%",
         )
     )
-    logger.addHandler(handler)
+    return handler
+
+
+def get_logger(
+    name: str,
+    level: int | str = 'INFO',
+) -> logging.Logger:
+
+    logger = logging.getLogger(name)
+
+    if logger.handlers:
+        return logger
+
+    logger.setLevel(level)
+    logger.addHandler(_make_handler())
     logger.propagate = False
-    
+
     return logger

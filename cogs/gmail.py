@@ -1,13 +1,16 @@
 """Gmail cog — /emails command."""
 
+import time
+
 import discord
-from utils.logger import get_logger
 from discord import app_commands
 from discord.ext import commands
 
 from cogs.auth import require_auth
 from services import gmail_service
-from utils.embeds import email_list_embed, email_embed
+from utils.embeds import email_embed, email_list_embed
+from utils.logger import get_logger
+from utils.metrics import command_duration, command_invocations
 from utils.pagination import PaginatedView
 
 logger = get_logger(__name__)
@@ -32,6 +35,7 @@ class Gmail(commands.Cog):
         count: app_commands.Range[int, 1, 20] = 10,
         query: str = "is:inbox",
     ):
+        start = time.monotonic()
         await interaction.response.defer(thinking=True)
 
         if not await require_auth(interaction):
@@ -49,12 +53,16 @@ class Gmail(commands.Cog):
             )
         except Exception as e:
             logger.error(f"Gmail API error: {e}")
+            command_invocations.labels(command="emails", status="error").inc()
+            command_duration.labels(command="emails").observe(time.monotonic() - start)
             return await interaction.followup.send(
                 "❌ Failed to fetch emails. Make sure you've authenticated with Google.\n",
                 ephemeral=True,
             )
 
         if not messages:
+            command_invocations.labels(command="emails", status="success").inc()
+            command_duration.labels(command="emails").observe(time.monotonic() - start)
             return await interaction.followup.send("📭 No emails found for that query.")
 
         # If 5 or fewer, show summary embed. If more, paginate individual embeds.
@@ -65,6 +73,9 @@ class Gmail(commands.Cog):
             embeds = [email_embed(msg) for msg in messages]
             view = PaginatedView(embeds, author_id=interaction.user.id)
             await interaction.followup.send(embed=embeds[0], view=view)
+
+        command_invocations.labels(command="emails", status="success").inc()
+        command_duration.labels(command="emails").observe(time.monotonic() - start)
 
 
 async def setup(bot: commands.Bot):

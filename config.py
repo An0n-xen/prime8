@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
     VAULT_SECRET_ID: str = ""
 
     # Dev mode: loaded directly from .env
-    DISCORD_TOKEN: Optional[str] = None
+    DISCORD_TOKEN: str | None = None
     GOOGLE_CREDENTIALS_FILE: str = "data/credentials.json"
     GOOGLE_TOKEN_DIR: str = "data/tokens"
 
@@ -23,6 +24,7 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_API_CALLS: int = 4
     SERVICE_CACHE_TTL_SECONDS: int = 300
     OAUTH_CALLBACK_PORT: int = 8090
+    METRICS_PORT: int = 9090
     STATE_DIR: str = "data/state"
 
     GOOGLE_SCOPES: list[str] = [
