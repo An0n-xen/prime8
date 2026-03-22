@@ -64,7 +64,7 @@ class Auth(commands.Cog):
 
         # Start the callback server
         await runner.setup()
-        site = web.TCPSite(runner, "localhost", config.OAUTH_CALLBACK_PORT)
+        site = web.TCPSite(runner, "0.0.0.0", config.OAUTH_CALLBACK_PORT)
         try:
             await site.start()
         except OSError:
