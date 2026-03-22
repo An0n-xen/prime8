@@ -38,7 +38,10 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
           script: |
+            set -e
+
             # First-time setup: clone repo, create network
             if [ ! -d ~/prime8 ]; then
               git clone https://github.com/An0n-xen/prime8.git ~/prime8
