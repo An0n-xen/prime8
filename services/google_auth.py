@@ -164,11 +164,15 @@ class CredentialManager:
                 "Vault service not initialized. Call init_vault() first."
             )
         google_creds = vault.get_google_credentials()
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)  # noqa: SIM115
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        )  # noqa: SIM115
         json.dump(google_creds, tmp)
         tmp.close()
 
-        redirect_uri = f"https://{config.OAUTH_CALLBACK_HOST}:{config.OAUTH_CALLBACK_PORT}/callback"
+        redirect_uri = (
+            f"http://{config.OAUTH_CALLBACK_HOST}:{config.OAUTH_CALLBACK_PORT}/callback"
+        )
 
         flow = Flow.from_client_secrets_file(
             tmp.name,
