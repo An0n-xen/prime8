@@ -6,6 +6,7 @@ import asyncio
 import json
 import time
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import httpx
 
@@ -26,7 +27,7 @@ class GitHubClient:
         self._rate_reset: float = 0
         self._search_remaining: int = 30
         self._search_reset: float = 0
-        self._etag_cache: dict[str, tuple[str, dict]] = {}  # url -> (etag, data)
+        self._etag_cache: dict[str, tuple[str, dict[str, Any]]] = {}  # url -> (etag, data)
 
     @property
     def headers(self) -> dict[str, str]:
@@ -62,7 +63,7 @@ class GitHubClient:
             logger.warning(f"Rate limit near exhaustion, waiting {wait:.0f}s")
             await asyncio.sleep(min(wait, 60))
 
-    async def rest_get(self, endpoint: str, params: dict | None = None, is_search: bool = False) -> dict | list | None:
+    async def rest_get(self, endpoint: str, params: dict[str, Any] | None = None, is_search: bool = False) -> dict[str, Any] | None:
         await self._wait_for_rate_limit(is_search)
         client = await self._get_client()
 
@@ -95,11 +96,11 @@ class GitHubClient:
         logger.error(f"GitHub REST error {response.status_code}: {response.text[:200]}")
         return None
 
-    async def graphql(self, query: str, variables: dict | None = None) -> dict | None:
+    async def graphql(self, query: str, variables: dict[str, str] | None = None) -> dict[str, Any] | None:
         await self._wait_for_rate_limit()
         client = await self._get_client()
 
-        payload = {"query": query}
+        payload: dict[str, Any] = {"query": query}
         if variables:
             payload["variables"] = variables
 
@@ -118,7 +119,7 @@ class GitHubClient:
 
     # --- High-level methods ---
 
-    async def get_repo(self, owner: str, name: str) -> dict | None:
+    async def get_repo(self, owner: str, name: str) -> dict[str, Any] | None:
         return await self.rest_get(f"/repos/{owner}/{name}")
 
     async def search_trending(
@@ -135,8 +136,8 @@ class GitHubClient:
 
         params = {"q": q, "sort": "stars", "order": "desc", "per_page": per_page}
         data = await self.rest_get("/search/repositories", params=params, is_search=True)
-        if data and "items" in data:
-            return data["items"]
+        if data and isinstance(data, dict) and "items" in data:
+            return data["items"]  # type: ignore[no-any-return]
         return []
 
     async def batch_fetch_repos(self, repo_names: list[str]) -> list[dict]:
@@ -247,10 +248,10 @@ class GitHubClient:
             return data["repository"]
         return None
 
-    async def get_stargazers_with_dates(self, owner: str, name: str, per_page: int = 100, pages: int = 5) -> list[dict]:
+    async def get_stargazers_with_dates(self, owner: str, name: str, per_page: int = 100, pages: int = 5) -> list[dict[str, Any]]:
         """Fetch stargazer timestamps using the star+json accept header."""
         client = await self._get_client()
-        stargazers = []
+        stargazers: list[dict[str, Any]] = []
 
         for page in range(1, pages + 1):
             await self._wait_for_rate_limit()

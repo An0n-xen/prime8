@@ -71,7 +71,7 @@ class GitHub(commands.Cog):
         cached, is_stale = await cache_service.get_or_fallback(cache_key)
 
         if cached:
-            embed = trending_embed(cached, language, window_val, is_stale)
+            embed = trending_embed(cached, language, window_val, is_stale)  # type: ignore[arg-type]
             await interaction.followup.send(embed=embed)
             return
 
@@ -110,7 +110,7 @@ class GitHub(commands.Cog):
             snapshots = await asyncio.to_thread(database_service.get_snapshots, repo, 30)
             if snapshots:
                 growth = growth_calculator.compute(snapshots)
-            embed = repo_stats_embed(cached, growth)
+            embed = repo_stats_embed(cached, growth)  # type: ignore[arg-type]
             await interaction.followup.send(embed=embed)
             return
 
@@ -176,7 +176,7 @@ class GitHub(commands.Cog):
         cached = await cache_service.get(cache_key)
 
         if cached:
-            embed = health_embed(repo, cached)
+            embed = health_embed(repo, cached)  # type: ignore[arg-type]
             await interaction.followup.send(embed=embed)
             return
 
@@ -211,7 +211,7 @@ class GitHub(commands.Cog):
         cached = await cache_service.get(cache_key)
 
         if cached:
-            embed = compare_embed(cached)
+            embed = compare_embed(cached)  # type: ignore[arg-type]
             await interaction.followup.send(embed=embed)
             return
 
