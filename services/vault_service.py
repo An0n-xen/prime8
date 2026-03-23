@@ -60,6 +60,17 @@ class VaultService:
         data = self.read_secret("prime8")
         return data["discord_token"]
 
+    def get_github_analytics_secrets(self) -> dict:
+        """Return GitHub analytics secrets (github_token, supabase_url, etc.)."""
+        data = self.read_secret("prime8")
+        return {
+            "github_token": data.get("github_token", ""),
+            "supabase_url": data.get("supabase_url", ""),
+            "supabase_key": data.get("supabase_key", ""),
+            "redis_url": data.get("redis_url", ""),
+            "hf_api_token": data.get("hf_api_token", ""),
+        }
+
     def get_google_credentials(self) -> dict:
         """Return the Google OAuth client credentials as a dict."""
         data = self.read_secret("prime8/google")

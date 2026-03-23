@@ -28,6 +28,18 @@ class Settings(BaseSettings):
     METRICS_PORT: int = 9091
     STATE_DIR: str = "data/state"
 
+    # GitHub Analytics
+    GITHUB_TOKEN: str = ""
+    REDIS_URL: str = "redis://localhost:6379"
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
+    HF_API_TOKEN: str = ""
+    SNAPSHOT_INTERVAL_HOURS: int = 4
+    BREAKOUT_SCAN_HOURS: int = 6
+    DEFAULT_BREAKOUT_MULTIPLIER: float = 3.0
+    TRENDING_CACHE_TTL_SECONDS: int = 3600
+    DIGEST_TIME: str = "08:00"
+
     GOOGLE_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/gmail.readonly",
         "https://www.googleapis.com/auth/calendar.readonly",

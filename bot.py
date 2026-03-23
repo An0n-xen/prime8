@@ -24,6 +24,8 @@ EXTENSIONS = [
     "cogs.gmail",
     "cogs.calendar",
     "cogs.notifications",
+    "cogs.github",
+    "cogs.github_notifications",
 ]
 
 
@@ -82,6 +84,15 @@ async def main():
             secret_id=config.VAULT_SECRET_ID,
         )
         config.DISCORD_TOKEN = secret_svc.get_discord_token()
+
+        # Load GitHub analytics secrets from Vault
+        gh_secrets = secret_svc.get_github_analytics_secrets()
+        config.GITHUB_TOKEN = gh_secrets["github_token"]
+        config.SUPABASE_URL = gh_secrets["supabase_url"]
+        config.SUPABASE_KEY = gh_secrets["supabase_key"]
+        config.REDIS_URL = gh_secrets["redis_url"]
+        config.HF_API_TOKEN = gh_secrets["hf_api_token"]
+
         logger.info("Loaded secrets from Vault (prod mode)")
     else:
         from services.local_secret_service import LocalSecretService
