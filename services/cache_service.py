@@ -45,18 +45,18 @@ class CacheService:
         return self._available and self._redis is not None
 
     async def get(self, key: str) -> dict | list | None:
-        if not self.available:
+        if not self.available or self._redis is None:
             return None
         try:
             data = await self._redis.get(key)
             if data:
-                return json.loads(data)
+                return json.loads(data)  # type: ignore[no-any-return]
         except Exception as e:
             logger.warning(f"Cache get error for {key}: {e}")
         return None
 
-    async def set(self, key: str, value, ttl_key: str = "repo_meta"):
-        if not self.available:
+    async def set(self, key: str, value: object, ttl_key: str = "repo_meta") -> None:
+        if not self.available or self._redis is None:
             return
         try:
             ttl = TTLS.get(ttl_key, 900)
@@ -79,8 +79,8 @@ class CacheService:
 
         return None, False
 
-    async def delete(self, key: str):
-        if not self.available:
+    async def delete(self, key: str) -> None:
+        if not self.available or self._redis is None:
             return
         try:
             await self._redis.delete(key, f"fallback:{key}")

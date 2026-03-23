@@ -46,15 +46,17 @@ class AIService:
 
     async def embed_document(self, text: str) -> list[float]:
         """Embed a document with passage prefix (e5 format)."""
+        assert self._embed_model is not None
         embedding = await asyncio.to_thread(self._embed_model.encode, f"passage: {text}")
-        return embedding.tolist()
+        return embedding.tolist()  # type: ignore[no-any-return]
 
     async def embed_query(self, text: str) -> list[float]:
         """Embed a query (with prefix for asymmetric retrieval)."""
+        assert self._embed_model is not None
         embedding = await asyncio.to_thread(
             self._embed_model.encode, f"{QUERY_PREFIX}{text}"
         )
-        return embedding.tolist()
+        return embedding.tolist()  # type: ignore[no-any-return]
 
     async def index_repo(
         self,
@@ -81,12 +83,12 @@ class AIService:
             "health_score": health_score,
         }
 
-        await asyncio.to_thread(
-            self._collection.upsert,
+        assert self._collection is not None
+        self._collection.upsert(
             ids=[repo_name],
-            embeddings=[embedding],
+            embeddings=[embedding],  # type: ignore[arg-type]
             documents=[doc_text[:5000]],
-            metadatas=[metadata],
+            metadatas=[metadata],  # type: ignore[arg-type, list-item]
         )
 
     async def search(
@@ -100,14 +102,12 @@ class AIService:
 
         embedding = await self.embed_query(query)
 
-        where = {"language": language} if language else None
-
-        results = await asyncio.to_thread(
-            self._collection.query,
-            query_embeddings=[embedding],
+        assert self._collection is not None
+        results = self._collection.query(
+            query_embeddings=[embedding],  # type: ignore[arg-type]
             n_results=n_results,
-            where=where,
-            include=["documents", "metadatas", "distances"],
+            where={"language": language} if language else None,  # type: ignore[arg-type]
+            include=["documents", "metadatas", "distances"],  # type: ignore[list-item]
         )
 
         repos = []
