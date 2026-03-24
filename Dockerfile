@@ -17,13 +17,13 @@ RUN groupadd --gid 1000 prime8 && \
 
 WORKDIR /app
 
-COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/bot.py /app/config.py /app/
-COPY --from=builder /app/cogs /app/cogs
-COPY --from=builder /app/services /app/services
-COPY --from=builder /app/utils /app/utils
+COPY --from=builder --chown=prime8:prime8 /app/.venv /app/.venv
+COPY --from=builder --chown=prime8:prime8 /app/bot.py /app/config.py /app/
+COPY --from=builder --chown=prime8:prime8 /app/cogs /app/cogs
+COPY --from=builder --chown=prime8:prime8 /app/services /app/services
+COPY --from=builder --chown=prime8:prime8 /app/utils /app/utils
 
-RUN mkdir -p /app/data/state && chown -R prime8:prime8 /app
+RUN mkdir -p /app/data/state && chown prime8:prime8 /app/data/state
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
