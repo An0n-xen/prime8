@@ -31,6 +31,7 @@ jobs:
     name: Deploy to VPS
     needs: ci
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
