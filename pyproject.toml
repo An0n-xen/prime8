@@ -26,6 +26,7 @@ dependencies = [
     "matplotlib>=3.9.0",
     "huggingface-hub>=0.24.0",
     "einops>=0.8.0",
+    "langchain-openai>=0.3.0",
 ]
 
 [dependency-groups]

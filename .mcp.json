@@ -9,7 +9,7 @@
     },
     "supabase": {
       "type": "http",
-      "url": "https://mcp.supabase.com/mcp?read_only=true&features=database%2Cdebugging%2Cdevelopment%2Cdocs"
+      "url": "https://mcp.supabase.com/mcp?features=database%2Cdebugging%2Cdevelopment%2Cdocs"
     }
   }
 }

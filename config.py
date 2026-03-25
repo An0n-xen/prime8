@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # "dev" = local .env + file-based tokens, "prod" = HashiCorp Vault
     MODE: Literal["dev", "prod"] = "dev"
+    LOG_LEVEL: int | str = "DEBUG"
 
     # Vault connection (required in prod mode only)
     VAULT_ADDR: str = ""
@@ -39,6 +40,10 @@ class Settings(BaseSettings):
     DEFAULT_BREAKOUT_MULTIPLIER: float = 3.0
     TRENDING_CACHE_TTL_SECONDS: int = 3600
     DIGEST_TIME: str = "08:00"
+
+    # LLM (DeepInfra)
+    DEEPINFRA_API_KEY: str = ""
+    LLM_MODEL: str = ""
 
     GOOGLE_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/gmail.readonly",

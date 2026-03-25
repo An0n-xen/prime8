@@ -30,6 +30,7 @@ class AIService:
                 SentenceTransformer, EMBEDDING_MODEL
             )
             self._chroma_client = chromadb.PersistentClient(path="./data/chroma_db")
+            assert self._chroma_client is not None
             self._collection = self._chroma_client.get_or_create_collection(
                 name="github_repos",
                 metadata={"hnsw:space": "cosine"},
@@ -47,7 +48,9 @@ class AIService:
     async def embed_document(self, text: str) -> list[float]:
         """Embed a document with passage prefix (e5 format)."""
         assert self._embed_model is not None
-        embedding = await asyncio.to_thread(self._embed_model.encode, f"passage: {text}")
+        embedding = await asyncio.to_thread(
+            self._embed_model.encode, f"passage: {text}"
+        )
         return embedding.tolist()  # type: ignore[no-any-return]
 
     async def embed_query(self, text: str) -> list[float]:
@@ -113,31 +116,41 @@ class AIService:
         repos = []
         if results and results["ids"]:
             for i, repo_id in enumerate(results["ids"][0]):
-                repos.append({
-                    "repo_name": repo_id,
-                    "document": results["documents"][0][i] if results["documents"] else "",
-                    "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
-                    "similarity": 1 - results["distances"][0][i] if results["distances"] else 0,
-                })
+                repos.append(
+                    {
+                        "repo_name": repo_id,
+                        "document": (
+                            results["documents"][0][i] if results["documents"] else ""
+                        ),
+                        "metadata": (
+                            results["metadatas"][0][i] if results["metadatas"] else {}
+                        ),
+                        "similarity": (
+                            1 - results["distances"][0][i]
+                            if results["distances"]
+                            else 0
+                        ),
+                    }
+                )
         return repos
 
     async def generate_summary(self, text: str, max_length: int = 200) -> str | None:
-        """Generate a summary using HF Inference API."""
-        if not config.HF_API_TOKEN:
+        """Generate a summary using DeepInfra LLM."""
+        if not config.DEEPINFRA_API_KEY:
             return None
 
         try:
-            from huggingface_hub import AsyncInferenceClient
+            from services.llm_service import llm_service
 
-            client = AsyncInferenceClient(token=config.HF_API_TOKEN)
-            result = await client.text_generation(
-                prompt=f"Summarize the following GitHub trending data concisely:\n\n{text}\n\nSummary:",
-                model="mistralai/Mistral-7B-Instruct-v0.3",
-                max_new_tokens=max_length,
-            )
-            return result.strip() if isinstance(result, str) else str(result).strip()
+            if not llm_service.available:
+                llm_service.initialize()
+            if not llm_service.available:
+                return None
+
+            prompt = f"Summarize the following GitHub trending data concisely in {max_length} words or less:\n\n{text}"
+            return await llm_service.chat(prompt)
         except Exception as e:
-            logger.warning(f"HF summary generation failed: {e}")
+            logger.warning(f"Summary generation failed: {e}")
             return None
 
     async def close(self):

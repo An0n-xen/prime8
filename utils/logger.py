@@ -5,6 +5,8 @@ import os
 
 import colorlog
 
+from config import settings as config
+
 LOG_FORMAT = (
     "%(log_color)s%(levelname)-8s%(reset)s "
     "%(cyan)s%(asctime)s%(reset)s "
@@ -35,7 +37,11 @@ def _make_handler() -> logging.Handler:
             JsonFormatter(
                 fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
                 datefmt=DATEFMT,
-                rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
+                rename_fields={
+                    "asctime": "timestamp",
+                    "levelname": "level",
+                    "name": "logger",
+                },
             )
         )
         return handler
@@ -55,7 +61,7 @@ def _make_handler() -> logging.Handler:
 
 def get_logger(
     name: str,
-    level: int | str = 'INFO',
+    level: int | str = config.LOG_LEVEL,
 ) -> logging.Logger:
 
     logger = logging.getLogger(name)
