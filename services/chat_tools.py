@@ -100,7 +100,7 @@ async def github_trending(language: str = "", window: str = "weekly") -> str:
     cached, _ = await cache_service.get_or_fallback(cache_key)
 
     if cached:
-        return _format_trending(cached)
+        return _format_trending(cached)  # type: ignore[arg-type]
 
     repos = await github_client.search_trending(
         language=language.lower(), window_days=window_days
@@ -143,7 +143,7 @@ async def github_stats(repo: str) -> str:
     if snapshots:
         growth = growth_calculator.compute(snapshots)
 
-    return _format_stats(data, growth)
+    return _format_stats(data, growth)  # type: ignore[arg-type]
 
 
 @tool
@@ -187,7 +187,7 @@ async def github_health(repo: str) -> str:
     cached = await cache_service.get(cache_key)
 
     if cached:
-        return _format_health(repo, cached)
+        return _format_health(repo, cached)  # type: ignore[arg-type]
 
     health_data = await github_client.get_repo_health_data(owner, name)
     if not health_data:
@@ -218,7 +218,7 @@ async def github_compare(repos: str) -> str:
     cached = await cache_service.get(cache_key)
 
     if cached:
-        return _format_compare(cached)
+        return _format_compare(cached)  # type: ignore[arg-type]
 
     data = await github_client.batch_fetch_repos(repo_list)
     if not data:
