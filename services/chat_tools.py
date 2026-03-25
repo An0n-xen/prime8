@@ -373,24 +373,27 @@ async def execute_tool(
         if tool_name in USER_CONTEXT_TOOLS and user_id is None:
             return "This action requires authentication. Please authenticate with `/auth` first."
 
+        # user_id is guaranteed non-None for USER_CONTEXT_TOOLS after the guard above
+        uid: int = user_id or 0
+
         if tool_name == "list_emails":
-            return await _exec_list_emails(user_id, **tool_args)
+            return await _exec_list_emails(uid, **tool_args)
         elif tool_name == "search_emails":
-            return await _exec_search_emails(user_id, **tool_args)
+            return await _exec_search_emails(uid, **tool_args)
         elif tool_name == "list_meetings":
-            return await _exec_list_meetings(user_id, **tool_args)
+            return await _exec_list_meetings(uid, **tool_args)
         elif tool_name == "create_event":
-            return await _exec_create_event(user_id, **tool_args)
+            return await _exec_create_event(uid, **tool_args)
         elif tool_name == "watchlist_add":
-            return await _exec_watchlist_add(user_id, **tool_args)
+            return await _exec_watchlist_add(uid, **tool_args)
         elif tool_name == "watchlist_remove":
-            return await _exec_watchlist_remove(user_id, **tool_args)
+            return await _exec_watchlist_remove(uid, **tool_args)
         elif tool_name == "watchlist_list":
-            return await _exec_watchlist_list(user_id)
+            return await _exec_watchlist_list(uid)
         elif tool_name == "save_memory":
-            return await _exec_save_memory(user_id, **tool_args)
+            return await _exec_save_memory(uid, **tool_args)
         elif tool_name == "forget_memory":
-            return await _exec_forget_memory(user_id, **tool_args)
+            return await _exec_forget_memory(uid, **tool_args)
         else:
             # Non-user-context tools can be called directly
             tool_map = {t.name: t for t in ALL_TOOLS}

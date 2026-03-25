@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from langchain_core.messages import (
     AIMessage,
+    BaseMessage,
     HumanMessage,
     SystemMessage,
     ToolMessage,
@@ -153,7 +154,7 @@ class LLMService:
         if not self._llm:
             return "LLM service is not available. Please set DEEPINFRA_API_KEY."
 
-        messages = [SystemMessage(content=SYSTEM_PROMPT)]
+        messages: list[BaseMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
 
         if history:
             for msg in history:
@@ -164,13 +165,13 @@ class LLMService:
 
         messages.append(HumanMessage(content=user_message))
 
-        llm = self._llm
-        if self._supports_thinking and self._needs_thinking(user_message):
+        llm: ChatOpenAI = self._llm  # type: ignore[assignment]
+        if self._supports_thinking and self._llm_thinking and self._needs_thinking(user_message):
             llm = self._llm_thinking
 
         try:
             response = await llm.ainvoke(messages)
-            return response.content
+            return str(response.content)
         except Exception as e:
             logger.error(f"LLM request failed: {e}")
             return "Sorry, I encountered an error generating a response."
@@ -216,7 +217,7 @@ class LLMService:
             "Use forget_memory when the user asks you to forget something."
         )
 
-        messages: list = [SystemMessage(content=prompt)]
+        messages: list[BaseMessage] = [SystemMessage(content=prompt)]
 
         if history:
             for msg in history:
@@ -235,7 +236,7 @@ class LLMService:
 
                 if not response.tool_calls:
                     return ChatResult(
-                        text=response.content or "Done.",
+                        text=str(response.content) if response.content else "Done.",
                         tools_used=tools_used,
                     )
 
@@ -246,9 +247,9 @@ class LLMService:
                     messages.append(ToolMessage(content=result, tool_call_id=tc["id"]))
 
             # If we exhausted rounds, get a final response without tools
-            response = await self._llm.ainvoke(messages)
+            final_response = await self._llm.ainvoke(messages)  # type: ignore[union-attr]
             return ChatResult(
-                text=response.content or "I completed the requested actions.",
+                text=str(final_response.content) if final_response.content else "I completed the requested actions.",
                 tools_used=tools_used,
             )
 
