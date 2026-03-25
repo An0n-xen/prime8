@@ -27,6 +27,7 @@ dependencies = [
     "huggingface-hub>=0.24.0",
     "einops>=0.8.0",
     "langchain-openai>=0.3.0",
+    "langchain-community>=0.3.0",
 ]
 
 [dependency-groups]
