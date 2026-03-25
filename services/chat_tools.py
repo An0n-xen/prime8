@@ -295,6 +295,36 @@ async def watchlist_list() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Memory tools
+# ---------------------------------------------------------------------------
+
+
+@tool
+async def save_memory(content: str, category: str = "fact") -> str:
+    """Save a fact, preference, or note about the user for future conversations.
+    Only call this when the user shares something worth remembering long-term
+    (e.g. their role, preferences, projects they work on). Do NOT save trivial
+    or transient information.
+
+    Args:
+        content: The fact or preference to remember (e.g. 'Works with FastAPI and deploys on Hetzner').
+        category: One of 'fact', 'preference', or 'note'.
+    """
+    return json.dumps({"error": "no user context"})
+
+
+@tool
+async def forget_memory(content: str) -> str:
+    """Forget/delete a previously saved memory about the user. Use when the user
+    asks you to forget something or corrects outdated information.
+
+    Args:
+        content: A keyword or phrase to match against saved memories (e.g. 'AWS' to remove a memory about AWS).
+    """
+    return json.dumps({"error": "no user context"})
+
+
+# ---------------------------------------------------------------------------
 # All tools list
 # ---------------------------------------------------------------------------
 
@@ -312,6 +342,8 @@ ALL_TOOLS = [
     watchlist_add,
     watchlist_remove,
     watchlist_list,
+    save_memory,
+    forget_memory,
 ]
 
 # Tools that need user_id context to execute
@@ -323,6 +355,8 @@ USER_CONTEXT_TOOLS = {
     "watchlist_add",
     "watchlist_remove",
     "watchlist_list",
+    "save_memory",
+    "forget_memory",
 }
 
 
@@ -353,6 +387,10 @@ async def execute_tool(
             return await _exec_watchlist_remove(user_id, **tool_args)
         elif tool_name == "watchlist_list":
             return await _exec_watchlist_list(user_id)
+        elif tool_name == "save_memory":
+            return await _exec_save_memory(user_id, **tool_args)
+        elif tool_name == "forget_memory":
+            return await _exec_forget_memory(user_id, **tool_args)
         else:
             # Non-user-context tools can be called directly
             tool_map = {t.name: t for t in ALL_TOOLS}
@@ -490,6 +528,34 @@ async def _exec_watchlist_list(user_id: int) -> str:
         url = f"https://github.com/{name}"
         lines.append(f"- [{name}]({url}) (threshold: {e.get('threshold', '?')}x)")
     return "\n".join(lines)
+
+
+async def _exec_save_memory(
+    user_id: int, content: str = "", category: str = "fact"
+) -> str:
+    from services.memory_service import memory_service
+
+    if not content:
+        return "No content provided to save."
+    if category not in ("fact", "preference", "note"):
+        category = "fact"
+    await asyncio.to_thread(
+        memory_service.save_user_memory, str(user_id), content, category
+    )
+    return f"Saved: {content}"
+
+
+async def _exec_forget_memory(user_id: int, content: str = "") -> str:
+    from services.memory_service import memory_service
+
+    if not content:
+        return "No content provided to match against."
+    count = await asyncio.to_thread(
+        memory_service.delete_user_memory, str(user_id), content
+    )
+    if count == 0:
+        return f"No memories found matching '{content}'."
+    return f"Removed {count} memory/memories matching '{content}'."
 
 
 # ---------------------------------------------------------------------------
