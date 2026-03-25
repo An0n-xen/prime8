@@ -43,7 +43,7 @@ class Settings(BaseSettings):
 
     # LLM (DeepInfra)
     DEEPINFRA_API_KEY: str = ""
-    LLM_MODEL: str = ""
+    LLM_MODEL: str = "Qwen/Qwen2.5-72B-Instruct"
 
     GOOGLE_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/gmail.readonly",
