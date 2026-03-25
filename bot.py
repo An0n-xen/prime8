@@ -26,6 +26,7 @@ EXTENSIONS = [
     "cogs.notifications",
     "cogs.github",
     "cogs.github_notifications",
+    "cogs.chat",
 ]
 
 

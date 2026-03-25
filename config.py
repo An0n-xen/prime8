@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     TRENDING_CACHE_TTL_SECONDS: int = 3600
     DIGEST_TIME: str = "08:00"
 
+    # LLM (DeepInfra)
+    DEEPINFRA_API_KEY: str = ""
+    LLM_MODEL: str = ""
+
     GOOGLE_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/gmail.readonly",
         "https://www.googleapis.com/auth/calendar.readonly",

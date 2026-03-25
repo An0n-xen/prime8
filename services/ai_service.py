@@ -122,22 +122,22 @@ class AIService:
         return repos
 
     async def generate_summary(self, text: str, max_length: int = 200) -> str | None:
-        """Generate a summary using HF Inference API."""
-        if not config.HF_API_TOKEN:
+        """Generate a summary using DeepInfra LLM."""
+        if not config.DEEPINFRA_API_KEY:
             return None
 
         try:
-            from huggingface_hub import AsyncInferenceClient
+            from services.llm_service import llm_service
 
-            client = AsyncInferenceClient(token=config.HF_API_TOKEN)
-            result = await client.text_generation(
-                prompt=f"Summarize the following GitHub trending data concisely:\n\n{text}\n\nSummary:",
-                model="mistralai/Mistral-7B-Instruct-v0.3",
-                max_new_tokens=max_length,
-            )
-            return result.strip() if isinstance(result, str) else str(result).strip()
+            if not llm_service.available:
+                llm_service.initialize()
+            if not llm_service.available:
+                return None
+
+            prompt = f"Summarize the following GitHub trending data concisely in {max_length} words or less:\n\n{text}"
+            return await llm_service.chat(prompt)
         except Exception as e:
-            logger.warning(f"HF summary generation failed: {e}")
+            logger.warning(f"Summary generation failed: {e}")
             return None
 
     async def close(self):
