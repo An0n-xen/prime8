@@ -13,6 +13,11 @@ logger = get_logger(__name__)
 # Per-channel conversation history (last N turns)
 MAX_HISTORY = 10
 
+# Discord embed description limit
+EMBED_DESC_LIMIT = 4096
+# Discord message limit
+MSG_LIMIT = 2000
+
 
 class Chat(commands.Cog):
     """Respond to mentions with AI-powered chat."""
@@ -45,18 +50,30 @@ class Chat(commands.Cog):
         history = self._history.get(channel_id, [])
 
         async with message.channel.typing():
-            response = await llm_service.chat(content, history=history)
+            result = await llm_service.chat_with_tools(
+                content, user_id=message.author.id, history=history,
+            )
 
         # Update history
         history.append({"role": "user", "content": content})
-        history.append({"role": "assistant", "content": response})
+        history.append({"role": "assistant", "content": result.text})
         self._history[channel_id] = history[-MAX_HISTORY:]
 
-        # Discord has a 2000 char limit — split if needed
-        if len(response) <= 2000:
-            await message.reply(response, mention_author=False)
+        # Send as embed when tools were used (richer UI), plain text otherwise
+        meta = result.embed_meta
+        if meta and len(result.text) <= EMBED_DESC_LIMIT:
+            emoji, title, color = meta
+            embed = discord.Embed(
+                title=f"{emoji} {title}",
+                description=result.text,
+                color=color,
+            )
+            await message.reply(embed=embed, mention_author=False)
+        elif len(result.text) <= MSG_LIMIT:
+            await message.reply(result.text, mention_author=False)
         else:
-            chunks = [response[i : i + 2000] for i in range(0, len(response), 2000)]
+            # Long response — split into chunks
+            chunks = [result.text[i : i + MSG_LIMIT] for i in range(0, len(result.text), MSG_LIMIT)]
             for chunk in chunks:
                 await message.channel.send(chunk)
 
