@@ -1,7 +1,7 @@
 """Memory service — persistent user, guild, and conversation memory via Supabase.
 
-Uses an in-memory cache so we only hit Supabase once per user/guild/channel
-until the cache is explicitly invalidated (on write or after TTL expires).
+Uses an in-memory TTL cache so we only hit Supabase once per key
+until the cache expires (5 minutes) or is invalidated on write.
 """
 
 from __future__ import annotations
@@ -15,12 +15,9 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Limits to keep token usage reasonable
 MAX_USER_MEMORIES = 50
 MAX_GUILD_MEMORIES = 30
 SUMMARY_MAX_CHARS = 1500
-
-# Cache TTL in seconds — refresh from Supabase at most this often
 CACHE_TTL = 300  # 5 minutes
 
 
@@ -47,14 +44,9 @@ class _Cache:
     def invalidate(self, key: str) -> None:
         self._store.pop(key, None)
 
-    def invalidate_prefix(self, prefix: str) -> None:
-        keys = [k for k in self._store if k.startswith(prefix)]
-        for k in keys:
-            del self._store[k]
-
 
 class MemoryService:
-    """Read/write memory from Supabase. Caches reads in-memory."""
+    """Read/write memory from Supabase with TTL cache."""
 
     def __init__(self) -> None:
         self._cache = _Cache()
@@ -74,12 +66,10 @@ class MemoryService:
     def get_user_memories(self, discord_user_id: str) -> list[dict[str, Any]]:
         if not self.available:
             return []
-
         cache_key = f"user:{discord_user_id}"
         cached = self._cache.get(cache_key)
         if cached is not None:
             return cached
-
         result = (
             self._db.table("user_memories")
             .select("id, content, category")
@@ -106,11 +96,10 @@ class MemoryService:
                 "updated_at": datetime.now(UTC).isoformat(),
             }
         ).execute()
-        # Invalidate cache so next read picks up the new memory
         self._cache.invalidate(f"user:{discord_user_id}")
 
     def delete_user_memory(self, discord_user_id: str, content_query: str) -> int:
-        """Delete memories whose content contains the query string. Returns count deleted."""
+        """Delete memories whose content contains the query string. Returns count."""
         if not self.available:
             return 0
         result = (
@@ -135,12 +124,10 @@ class MemoryService:
     def get_guild_memories(self, guild_id: str) -> list[dict[str, Any]]:
         if not self.available:
             return []
-
         cache_key = f"guild:{guild_id}"
         cached = self._cache.get(cache_key)
         if cached is not None:
             return cached
-
         result = (
             self._db.table("guild_memories")
             .select("id, content, category")
@@ -178,12 +165,10 @@ class MemoryService:
     ) -> dict[str, Any] | None:
         if not self.available:
             return None
-
         cache_key = f"summary:{discord_user_id}:{channel_id}"
         cached = self._cache.get(cache_key)
         if cached is not None:
             return cached
-
         result = (
             self._db.table("conversation_summaries")
             .select("*")
@@ -193,7 +178,6 @@ class MemoryService:
             .execute()
         )
         data = result.data[0] if result.data else None
-        # Cache even None (no summary yet) to avoid repeated queries
         self._cache.set(cache_key, data)
         return data
 
@@ -230,15 +214,16 @@ class MemoryService:
         channel_id: str,
         guild_id: str | None = None,
     ) -> str:
-        """Build a memory context string to inject into the system prompt."""
+        """Build a memory context string to inject into the system prompt.
+
+        Only loads data for the specific user, channel, and guild provided.
+        """
         if not self.available:
-            logger.debug("Memory service unavailable (Supabase not connected)")
             return ""
 
         sections: list[str] = []
 
         user_mems = self.get_user_memories(discord_user_id)
-        logger.debug(f"User {discord_user_id}: {len(user_mems)} memories loaded")
         if user_mems:
             lines = [f"- {m['content']}" for m in user_mems]
             sections.append("What you know about this user:\n" + "\n".join(lines))

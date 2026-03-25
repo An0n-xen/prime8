@@ -71,6 +71,11 @@ class VaultService:
             "hf_api_token": data.get("hf_api_token", ""),
         }
 
+    def get_deepinfra_api_key(self) -> str:
+        """Return the DeepInfra API key."""
+        data = self.read_secret("prime8")
+        return data.get("deepinfra_api_key", "")
+
     def get_google_credentials(self) -> dict:
         """Return the Google OAuth client credentials as a dict."""
         data = self.read_secret("prime8/google")

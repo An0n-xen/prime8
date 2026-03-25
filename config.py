@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # "dev" = local .env + file-based tokens, "prod" = HashiCorp Vault
     MODE: Literal["dev", "prod"] = "dev"
+    LOG_LEVEL: int | str = "DEBUG"
 
     # Vault connection (required in prod mode only)
     VAULT_ADDR: str = ""

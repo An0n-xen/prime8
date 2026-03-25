@@ -1,4 +1,4 @@
-"""Chat cog — responds to @mentions with LLM-powered replies."""
+"""Chat cog — responds to @mentions and DMs with LLM-powered replies."""
 
 from __future__ import annotations
 
@@ -6,42 +6,37 @@ import asyncio
 
 import discord
 from discord.ext import commands, tasks
+from langchain_core.chat_history import InMemoryChatMessageHistory
 
 from services.llm_service import llm_service
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Per user+channel conversation history (last N turns)
-MAX_HISTORY = 10
+# Per user+channel conversation history (last N turns kept)
+MAX_HISTORY = 20
 
 # How often to flush dirty conversations to Supabase (seconds)
 PERSIST_INTERVAL = 300  # 5 minutes
 
-# Discord embed description limit
+# Discord limits
 EMBED_DESC_LIMIT = 4096
-# Discord message limit
 MSG_LIMIT = 2000
 
 
-def _history_key(user_id: int, channel_id: int) -> tuple[int, int]:
-    """Key history by (user, channel) so conversations never bleed across users."""
-    return (user_id, channel_id)
+def _history_key(user_id: int, channel_id: int) -> str:
+    return f"{user_id}:{channel_id}"
 
 
 class Chat(commands.Cog):
-    """Respond to mentions with AI-powered chat."""
+    """Respond to mentions and DMs with AI-powered chat."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # Keyed by (user_id, channel_id) — fully isolated per user per channel
-        self._history: dict[tuple[int, int], list[dict]] = {}
-        # Track total message count per user+channel for summary metadata
-        self._msg_counts: dict[tuple[int, int], int] = {}
-        # Track which conversations have new messages since last persist
-        self._dirty: set[tuple[int, int]] = set()
-        # Store guild_id per key for persist context
-        self._guild_ids: dict[tuple[int, int], int | None] = {}
+        self._histories: dict[str, InMemoryChatMessageHistory] = {}
+        self._msg_counts: dict[str, int] = {}
+        self._dirty: set[str] = set()
+        self._guild_ids: dict[str, int | None] = {}
 
     async def cog_load(self) -> None:
         self._persist_loop.start()
@@ -49,6 +44,11 @@ class Chat(commands.Cog):
     async def cog_unload(self) -> None:
         self._persist_loop.cancel()
         await self._flush_all()
+
+    def _get_history(self, key: str) -> InMemoryChatMessageHistory:
+        if key not in self._histories:
+            self._histories[key] = InMemoryChatMessageHistory()
+        return self._histories[key]
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -73,7 +73,13 @@ class Chat(commands.Cog):
         guild_id = message.guild.id if message.guild else None
         key = _history_key(user_id, channel_id)
 
-        history = self._history.get(key, [])
+        history = self._get_history(key)
+
+        # Convert to dict format for llm_service
+        history_dicts = [
+            {"role": "user" if msg.type == "human" else "assistant", "content": msg.content}
+            for msg in history.messages
+        ]
 
         async with message.channel.typing():
             result = await llm_service.chat_with_tools(
@@ -81,21 +87,19 @@ class Chat(commands.Cog):
                 user_id=user_id,
                 guild_id=guild_id,
                 channel_id=channel_id,
-                history=history,
+                history=history_dicts,
             )
 
-        # Update history
-        history.append({"role": "user", "content": content})
-        history.append({"role": "assistant", "content": result.text})
+        # Store in LangChain history
+        history.add_user_message(content)
+        history.add_ai_message(result.text)
         self._msg_counts[key] = self._msg_counts.get(key, 0) + 1
-
-        # Trim if over limit
-        if len(history) > MAX_HISTORY:
-            history = history[-MAX_HISTORY:]
-
-        self._history[key] = history
         self._dirty.add(key)
         self._guild_ids[key] = guild_id
+
+        # Trim old messages
+        while len(history.messages) > MAX_HISTORY:
+            history.messages.pop(0)
 
         # Send response
         meta = result.embed_meta
@@ -115,7 +119,7 @@ class Chat(commands.Cog):
                 await message.channel.send(chunk)
 
     # ------------------------------------------------------------------
-    # Background persist loop — runs every 5 minutes
+    # Background persist loop — summarize and flush every 5 minutes
     # ------------------------------------------------------------------
 
     @tasks.loop(seconds=PERSIST_INTERVAL)
@@ -127,30 +131,30 @@ class Chat(commands.Cog):
         await self.bot.wait_until_ready()
 
     async def _flush_all(self) -> None:
-        """Persist all dirty conversations to Supabase."""
+        """Summarize and persist all dirty conversations to Supabase."""
         if not self._dirty:
             return
 
-        # Snapshot and clear dirty set so new messages during flush don't get lost
         to_flush = self._dirty.copy()
         self._dirty.clear()
 
         count = 0
         for key in to_flush:
-            history = self._history.get(key)
-            if not history or len(history) < 2:
+            history = self._histories.get(key)
+            if not history or len(history.messages) < 2:
                 continue
-            user_id, channel_id = key
+            # Parse user_id and channel_id from key
+            user_id_str, channel_id_str = key.split(":", 1)
             guild_id = self._guild_ids.get(key)
             try:
                 await self._persist_summary(
-                    user_id, channel_id, guild_id,
+                    user_id_str, channel_id_str,
+                    str(guild_id) if guild_id else None,
                     history, self._msg_counts.get(key, 0),
                 )
                 count += 1
             except Exception as e:
-                logger.error(f"Failed to persist summary for user {user_id}: {e}")
-                # Re-mark as dirty so it retries next cycle
+                logger.error(f"Failed to persist summary for {key}: {e}")
                 self._dirty.add(key)
 
         if count:
@@ -158,29 +162,26 @@ class Chat(commands.Cog):
 
     async def _persist_summary(
         self,
-        user_id: int,
-        channel_id: int,
-        guild_id: int | None,
-        history: list[dict],
+        user_id: str,
+        channel_id: str,
+        guild_id: str | None,
+        history: InMemoryChatMessageHistory,
         total_msg_count: int,
     ) -> None:
         """Summarize conversation and write to Supabase."""
         from services.memory_service import memory_service
 
         if not memory_service.available:
-            logger.warning("Memory service unavailable — skipping summary")
             return
 
         lines = []
-        for msg in history:
-            role = "User" if msg["role"] == "user" else "Prime8"
-            lines.append(f"{role}: {msg['content'][:200]}")
+        for msg in history.messages:
+            role = "User" if msg.type == "human" else "Prime8"
+            lines.append(f"{role}: {msg.content[:200]}")
         conversation_text = "\n".join(lines)
 
         existing = await asyncio.to_thread(
-            memory_service.get_conversation_summary,
-            str(user_id),
-            str(channel_id),
+            memory_service.get_conversation_summary, user_id, channel_id,
         )
         existing_summary = (existing["summary"] if existing else "") or ""
 
@@ -197,11 +198,7 @@ class Chat(commands.Cog):
 
         await asyncio.to_thread(
             memory_service.upsert_conversation_summary,
-            str(user_id),
-            str(channel_id),
-            summary,
-            total_msg_count,
-            str(guild_id) if guild_id else None,
+            user_id, channel_id, summary, total_msg_count, guild_id,
         )
 
 

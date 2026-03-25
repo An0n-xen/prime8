@@ -94,6 +94,9 @@ async def main():
         config.REDIS_URL = gh_secrets["redis_url"]
         config.HF_API_TOKEN = gh_secrets["hf_api_token"]
 
+        # Load LLM secret from Vault
+        config.DEEPINFRA_API_KEY = secret_svc.get_deepinfra_api_key()
+
         logger.info("Loaded secrets from Vault (prod mode)")
     else:
         from services.local_secret_service import LocalSecretService
