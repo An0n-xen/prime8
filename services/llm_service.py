@@ -70,6 +70,7 @@ TOOL_CATEGORIES = {
     "watchlist_list": ("👁️", "Watchlist", 0x238636),
     "save_memory": ("🧠", "Memory Saved", 0x9B59B6),
     "forget_memory": ("🧠", "Memory Updated", 0x9B59B6),
+    "web_search": ("🔍", "Web Search", 0x4285F4),
 }
 
 

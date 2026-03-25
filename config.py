@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     DEEPINFRA_API_KEY: str = ""
     LLM_MODEL: str = "Qwen/Qwen2.5-72B-Instruct"
 
+    # Web Search (SearXNG)
+    SEARXNG_URL: str = "http://searxng:8080"
+
     GOOGLE_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/gmail.readonly",
         "https://www.googleapis.com/auth/calendar.readonly",

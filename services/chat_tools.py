@@ -325,6 +325,48 @@ async def forget_memory(content: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Web search tools
+# ---------------------------------------------------------------------------
+
+
+@tool
+async def web_search(query: str) -> str:
+    """Search the web for real-time information using SearXNG.
+    Use this when the user asks about current events, recent news,
+    or anything that requires up-to-date information from the internet.
+
+    Args:
+        query: The search query (e.g. 'latest Python 3.13 features', 'weather in Accra').
+    """
+    from langchain_community.utilities import SearxSearchWrapper
+
+    from config import settings as config
+
+    if not config.SEARXNG_URL:
+        return "Web search is not available. SearXNG is not configured."
+
+    try:
+        search = SearxSearchWrapper(
+            searx_host=config.SEARXNG_URL,
+            k=15,
+        )
+        results = await asyncio.to_thread(search.results, query, num_results=15)
+        if not results:
+            return f"No results found for: {query}"
+
+        lines = []
+        for r in results[:15]:
+            title = r.get("title", "Untitled")
+            link = r.get("link", "")
+            snippet = r.get("snippet", "")[:150]
+            lines.append(f"- [{title}]({link})\n  {snippet}")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"Web search failed: {e}")
+        return f"Web search failed: {e}"
+
+
+# ---------------------------------------------------------------------------
 # All tools list
 # ---------------------------------------------------------------------------
 
@@ -344,6 +386,7 @@ ALL_TOOLS = [
     watchlist_list,
     save_memory,
     forget_memory,
+    web_search,
 ]
 
 # Tools that need user_id context to execute

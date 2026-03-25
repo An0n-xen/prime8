@@ -25,6 +25,17 @@ services:
       retries: 3
       start_period: 15s
 
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    networks:
+      - monitoring
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+
 volumes:
   prime8-data:
 
