@@ -48,13 +48,3 @@ class LocalSecretService:
         if token_file.exists():
             token_file.unlink()
             logger.info("Deleted token for user %s from %s", user_id, token_file)
-
-    def get_ytdlp_cookies(self) -> str:
-        """Read yt-dlp cookies from a local file. Returns empty string if not found."""
-        if not config.YTDLP_COOKIES_FILE:
-            return ""
-        cookies_path = config.BASE_DIR / config.YTDLP_COOKIES_FILE
-        if not cookies_path.exists():
-            logger.warning("yt-dlp cookies file not found at %s", cookies_path)
-            return ""
-        return cookies_path.read_text(encoding="utf-8")

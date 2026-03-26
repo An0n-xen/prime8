@@ -112,20 +112,3 @@ class VaultService:
             logger.info("Deleted token for user %s from Vault", user_id)
         except InvalidPath:
             pass
-
-    def get_ytdlp_cookies(self) -> str:
-        """Return the yt-dlp cookies content (Netscape format) from Vault.
-
-        Cookies are stored as base64 to preserve tab/newline formatting.
-        """
-        import base64
-
-        data = self.read_secret("prime8")
-        raw = data.get("ytdlp_cookies", "")
-        if not raw:
-            return ""
-        try:
-            return base64.b64decode(raw).decode("utf-8")
-        except Exception:
-            # Fall back to raw string if not base64 encoded
-            return raw

@@ -50,12 +50,11 @@ def _ytdlp_download(url: str, output_dir: Path) -> DownloadResult:
         "outtmpl": outtmpl,
         "quiet": True,
         "no_warnings": True,
+        "max_filesize": MAX_BYTES,
         "noplaylist": True,
-        "format": "bv*+ba/b",
+        "format": f"best[filesize<{MAX_BYTES}]/bestvideo[filesize<{MAX_BYTES}]+bestaudio[filesize<{MAX_BYTES}]/best",
+        "merge_output_format": "mp4",
     }
-
-    if config.YTDLP_COOKIES_FILE:
-        ydl_opts["cookiefile"] = config.YTDLP_COOKIES_FILE
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
@@ -163,9 +162,6 @@ def _ytdlp_download_audio(url: str, output_dir: Path) -> DownloadResult:
             }
         ],
     }
-
-    if config.YTDLP_COOKIES_FILE:
-        ydl_opts["cookiefile"] = config.YTDLP_COOKIES_FILE
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)

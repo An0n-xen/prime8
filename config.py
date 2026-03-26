@@ -51,7 +51,6 @@ class Settings(BaseSettings):
     # Downloader
     DOWNLOAD_DIR: str = "data/downloads"
     DOWNLOAD_MAX_FILESIZE_MB: int = 500
-    YTDLP_COOKIES_FILE: str = ""
 
     GOOGLE_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/gmail.readonly",
