@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import shutil
 import time
 import uuid
@@ -51,9 +52,7 @@ def _ytdlp_download(url: str, output_dir: Path) -> DownloadResult:
         "no_warnings": True,
         "max_filesize": MAX_BYTES,
         "noplaylist": True,
-        "format": "best[filesize<{}]/bestvideo[filesize<{}]+bestaudio[filesize<{}]/best".format(
-            MAX_BYTES, MAX_BYTES, MAX_BYTES
-        ),
+        "format": f"best[filesize<{MAX_BYTES}]/bestvideo[filesize<{MAX_BYTES}]+bestaudio[filesize<{MAX_BYTES}]/best",
         "merge_output_format": "mp4",
     }
 
@@ -73,8 +72,8 @@ def _ytdlp_download(url: str, output_dir: Path) -> DownloadResult:
 
 def _gallerydl_download(url: str, output_dir: Path) -> DownloadResult:
     """Download images/galleries using gallery-dl. Runs in a thread."""
-    import gallery_dl
-    from gallery_dl import config as gdl_config, job
+    from gallery_dl import config as gdl_config
+    from gallery_dl import job
 
     t0 = time.monotonic()
 
@@ -103,29 +102,28 @@ async def _direct_download(url: str, output_dir: Path) -> DownloadResult:
     """Download a file directly via HTTP. Async-native."""
     t0 = time.monotonic()
 
-    async with httpx.AsyncClient(follow_redirects=True, timeout=120) as client:
-        async with client.stream("GET", url) as resp:
-            resp.raise_for_status()
+    async with httpx.AsyncClient(follow_redirects=True, timeout=120) as client, client.stream("GET", url) as resp:
+        resp.raise_for_status()
 
-            # Derive filename from URL or Content-Disposition
-            content_disp = resp.headers.get("content-disposition", "")
-            if "filename=" in content_disp:
-                fname = content_disp.split("filename=")[-1].strip('" ')
-            else:
-                fname = url.split("/")[-1].split("?")[0] or "file"
+        # Derive filename from URL or Content-Disposition
+        content_disp = resp.headers.get("content-disposition", "")
+        if "filename=" in content_disp:
+            fname = content_disp.split("filename=")[-1].strip('" ')
+        else:
+            fname = url.split("/")[-1].split("?")[0] or "file"
 
-            dest = output_dir / fname
-            total = 0
-            with dest.open("wb") as f:
-                async for chunk in resp.aiter_bytes(chunk_size=65536):
-                    total += len(chunk)
-                    if total > MAX_BYTES:
-                        dest.unlink(missing_ok=True)
-                        download_invocations.labels(tool="direct", status="error").inc()
-                        return DownloadResult(
-                            error=f"File exceeds {config.DOWNLOAD_MAX_FILESIZE_MB}MB limit"
-                        )
-                    f.write(chunk)
+        dest = output_dir / fname
+        total = 0
+        with dest.open("wb") as f:
+            async for chunk in resp.aiter_bytes(chunk_size=65536):
+                total += len(chunk)
+                if total > MAX_BYTES:
+                    dest.unlink(missing_ok=True)
+                    download_invocations.labels(tool="direct", status="error").inc()
+                    return DownloadResult(
+                        error=f"File exceeds {config.DOWNLOAD_MAX_FILESIZE_MB}MB limit"
+                    )
+                f.write(chunk)
 
     download_invocations.labels(tool="direct", status="success").inc()
     download_duration.labels(tool="direct").observe(time.monotonic() - t0)
@@ -331,7 +329,5 @@ def cleanup(output_dir: Path) -> None:
 def _clean_dir(output_dir: Path) -> None:
     """Remove all files in a directory without deleting the directory."""
     for f in output_dir.iterdir():
-        try:
+        with contextlib.suppress(Exception):
             f.unlink()
-        except Exception:
-            pass
