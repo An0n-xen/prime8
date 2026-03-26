@@ -52,14 +52,7 @@ def _ytdlp_download(url: str, output_dir: Path) -> DownloadResult:
         "no_warnings": True,
         "max_filesize": MAX_BYTES,
         "noplaylist": True,
-        # Prefer formats with known filesize under limit, but fall back to
-        # best available when filesize isn't reported (common for Shorts/live)
-        "format": (
-            f"best[filesize<={MAX_BYTES}]/"
-            f"bestvideo[filesize<={MAX_BYTES}]+bestaudio[filesize<={MAX_BYTES}]/"
-            "bestvideo+bestaudio/best"
-        ),
-        "merge_output_format": "mp4",
+        "format": "bv*+ba/b",
     }
 
     if config.YTDLP_COOKIES_FILE:
