@@ -325,6 +325,72 @@ async def forget_memory(content: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Download tools
+# ---------------------------------------------------------------------------
+
+
+@tool
+async def download_media(url: str, audio_only: bool = False, compress: bool = False) -> str:
+    """Download media from a URL (videos, images, files). Supports YouTube, Twitter/X,
+    Instagram, Reddit, TikTok, and thousands of other sites.
+
+    Args:
+        url: The URL to download from.
+        audio_only: Set to true to extract audio only (e.g. from a YouTube video).
+        compress: Set to true to compress video to fit Discord's 25MB upload limit.
+    """
+    from services import download_service
+    from services.download_service import DISCORD_FILE_LIMIT
+
+    try:
+        if audio_only:
+            result = await download_service.download_audio(url)
+        else:
+            result = await download_service.download(url)
+
+        if result.error:
+            return json.dumps({"error": result.error})
+
+        if not result.files:
+            return json.dumps({"error": "No files were downloaded."})
+
+        # Handle oversized files
+        oversized = [f for f in result.files if f.is_file() and f.stat().st_size > DISCORD_FILE_LIMIT]
+        if oversized and compress:
+            result = await download_service.compress_oversized_files(result)
+        elif oversized and not compress:
+            result.files = [f for f in result.files if f.is_file() and f.stat().st_size <= DISCORD_FILE_LIMIT]
+            if not result.files:
+                # Clean up the oversized files
+                output_dir = oversized[0].parent
+                download_service.cleanup(output_dir)
+                return json.dumps({
+                    "error": "All files exceed Discord's 25MB upload limit. "
+                    "Ask the user if they'd like to retry with compress=true."
+                })
+
+        file_info = []
+        for f in result.files:
+            if f.is_file():
+                file_info.append({
+                    "path": str(f),
+                    "name": f.name,
+                    "size_mb": round(f.stat().st_size / 1024 / 1024, 2),
+                })
+
+        return json.dumps({
+            "status": "success",
+            "title": result.title,
+            "source": result.source,
+            "compressed": result.compressed,
+            "files": file_info,
+        })
+    except Exception as e:
+        logger.error(f"download_media tool error: {e}")
+        return json.dumps({"error": str(e)})
+
+
+# ---------------------------------------------------------------------------
 # Web search tools
 # ---------------------------------------------------------------------------
 
@@ -386,6 +452,7 @@ ALL_TOOLS = [
     watchlist_list,
     save_memory,
     forget_memory,
+    download_media,
     web_search,
 ]
 

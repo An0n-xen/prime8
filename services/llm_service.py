@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from langchain_core.messages import (
     AIMessage,
@@ -24,7 +26,8 @@ SYSTEM_PROMPT = (
     "Keep responses concise and slightly professional in tone. "
     "Do not use smiling emojis at the end of messages. "
     "Use Discord markdown formatting when appropriate.\n\n"
-    "You have access to tools for Gmail, Google Calendar, GitHub analytics, and web search. "
+    "You have access to tools for Gmail, Google Calendar, GitHub analytics, web search, "
+    "and media downloading. "
     "When a user asks you to do something that requires these services, use the "
     "appropriate tool. Do NOT ask the user to use slash commands — use your tools instead.\n\n"
     "If you don't know something or the user asks about current events, recent news, "
@@ -74,6 +77,7 @@ TOOL_CATEGORIES = {
     "save_memory": ("🧠", "Memory Saved", 0x9B59B6),
     "forget_memory": ("🧠", "Memory Updated", 0x9B59B6),
     "web_search": ("🔍", "Web Search", 0x4285F4),
+    "download_media": ("📥", "Download", 0x34A853),
 }
 
 
@@ -81,6 +85,8 @@ TOOL_CATEGORIES = {
 class ChatResult:
     text: str
     tools_used: list[str] = field(default_factory=list)
+    attachments: list[Path] = field(default_factory=list)
+    _cleanup_dirs: list[Path] = field(default_factory=list)
 
     @property
     def used_tools(self) -> bool:
@@ -232,6 +238,8 @@ class LLMService:
 
         messages.append(HumanMessage(content=user_message))
         tools_used: list[str] = []
+        attachments: list[Path] = []
+        cleanup_dirs: list[Path] = []
 
         try:
             for _ in range(MAX_TOOL_ROUNDS):
@@ -242,6 +250,8 @@ class LLMService:
                     return ChatResult(
                         text=str(response.content) if response.content else "Done.",
                         tools_used=tools_used,
+                        attachments=attachments,
+                        _cleanup_dirs=cleanup_dirs,
                     )
 
                 for tc in response.tool_calls:
@@ -250,11 +260,27 @@ class LLMService:
                     result = await execute_tool(tc["name"], tc["args"], user_id=user_id)
                     messages.append(ToolMessage(content=result, tool_call_id=tc["id"]))
 
+                    # Collect file attachments from download tool results
+                    if tc["name"] == "download_media":
+                        try:
+                            data = json.loads(result)
+                            if data.get("status") == "success" and data.get("files"):
+                                for f in data["files"]:
+                                    p = Path(f["path"])
+                                    if p.is_file():
+                                        attachments.append(p)
+                                        if p.parent not in cleanup_dirs:
+                                            cleanup_dirs.append(p.parent)
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+
             # If we exhausted rounds, get a final response without tools
             final_response = await self._llm.ainvoke(messages)  # type: ignore[union-attr]
             return ChatResult(
                 text=str(final_response.content) if final_response.content else "I completed the requested actions.",
                 tools_used=tools_used,
+                attachments=attachments,
+                _cleanup_dirs=cleanup_dirs,
             )
 
         except Exception as e:
@@ -262,6 +288,8 @@ class LLMService:
             return ChatResult(
                 text="Sorry, I encountered an error while processing your request.",
                 tools_used=tools_used,
+                attachments=attachments,
+                _cleanup_dirs=cleanup_dirs,
             )
 
 

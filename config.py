@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # Web Search (SearXNG)
     SEARXNG_URL: str = "http://searxng:8080"
 
+    # Downloader
+    DOWNLOAD_DIR: str = "data/downloads"
+    DOWNLOAD_MAX_FILESIZE_MB: int = 500
+
     GOOGLE_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/gmail.readonly",
         "https://www.googleapis.com/auth/calendar.readonly",
@@ -55,6 +59,10 @@ class Settings(BaseSettings):
     ]
 
     BASE_DIR: Path = Path(__file__).parent
+
+    @property
+    def DOWNLOAD_PATH(self) -> Path:
+        return self.BASE_DIR / self.DOWNLOAD_DIR
 
     @property
     def STATE_PATH(self) -> Path:
@@ -87,6 +95,7 @@ class Settings(BaseSettings):
                 )
             self.TOKEN_PATH.mkdir(parents=True, exist_ok=True)
         self.STATE_PATH.mkdir(parents=True, exist_ok=True)
+        self.DOWNLOAD_PATH.mkdir(parents=True, exist_ok=True)
         return self
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

@@ -58,6 +58,20 @@ notifications_sent = Counter(
 )
 
 
+# -- Downloads --
+download_invocations = Counter(
+    "prime8_download_invocations_total",
+    "Total download invocations",
+    ["tool", "status"],
+)
+download_duration = Histogram(
+    "prime8_download_duration_seconds",
+    "Download execution time",
+    ["tool"],
+    buckets=(0.5, 1, 2.5, 5, 10, 30, 60, 120, 300),
+)
+
+
 def start_metrics_server(port: int):
     """Start the Prometheus metrics HTTP server on the given port."""
     start_http_server(port)
