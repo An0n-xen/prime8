@@ -52,7 +52,13 @@ def _ytdlp_download(url: str, output_dir: Path) -> DownloadResult:
         "no_warnings": True,
         "max_filesize": MAX_BYTES,
         "noplaylist": True,
-        "format": f"best[filesize<{MAX_BYTES}]/bestvideo[filesize<{MAX_BYTES}]+bestaudio[filesize<{MAX_BYTES}]/best",
+        # Prefer formats with known filesize under limit, but fall back to
+        # best available when filesize isn't reported (common for Shorts/live)
+        "format": (
+            f"best[filesize<={MAX_BYTES}]/"
+            f"bestvideo[filesize<={MAX_BYTES}]+bestaudio[filesize<={MAX_BYTES}]/"
+            "bestvideo+bestaudio/best"
+        ),
         "merge_output_format": "mp4",
     }
 
@@ -60,7 +66,7 @@ def _ytdlp_download(url: str, output_dir: Path) -> DownloadResult:
         info = ydl.extract_info(url, download=True)
         title = info.get("title", "download") if info else "download"
 
-    files = sorted(output_dir.iterdir())
+    files = [f for f in sorted(output_dir.iterdir()) if f.is_file()]
     download_invocations.labels(tool="yt-dlp", status="success").inc()
     download_duration.labels(tool="yt-dlp").observe(time.monotonic() - t0)
     return DownloadResult(files=files, title=title, source="yt-dlp")
@@ -104,6 +110,12 @@ async def _direct_download(url: str, output_dir: Path) -> DownloadResult:
 
     async with httpx.AsyncClient(follow_redirects=True, timeout=120) as client, client.stream("GET", url) as resp:
         resp.raise_for_status()
+
+        # Reject HTML/text responses — these are web pages, not downloadable files
+        content_type = resp.headers.get("content-type", "")
+        if any(t in content_type for t in ("text/html", "text/xml", "application/xhtml")):
+            download_invocations.labels(tool="direct", status="error").inc()
+            return DownloadResult(error="URL points to a web page, not a downloadable file.")
 
         # Derive filename from URL or Content-Disposition
         content_disp = resp.headers.get("content-disposition", "")
@@ -331,3 +343,27 @@ def _clean_dir(output_dir: Path) -> None:
     for f in output_dir.iterdir():
         with contextlib.suppress(Exception):
             f.unlink()
+
+
+def cleanup_stale(max_age_seconds: int = 600) -> int:
+    """Remove download directories older than max_age_seconds. Returns count removed."""
+    removed = 0
+    download_root = config.DOWNLOAD_PATH
+    if not download_root.exists():
+        return 0
+
+    now = time.time()
+    for entry in download_root.iterdir():
+        if not entry.is_dir():
+            continue
+        try:
+            age = now - entry.stat().st_mtime
+            if age > max_age_seconds:
+                shutil.rmtree(entry, ignore_errors=True)
+                removed += 1
+        except Exception:
+            pass
+
+    if removed:
+        logger.info(f"Cleaned up {removed} stale download directory/directories")
+    return removed

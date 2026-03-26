@@ -6,7 +6,7 @@ import time
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from services import download_service
 from services.download_service import DISCORD_FILE_LIMIT
@@ -21,6 +21,21 @@ class Downloader(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    async def cog_load(self) -> None:
+        self._cleanup_loop.start()
+
+    async def cog_unload(self) -> None:
+        self._cleanup_loop.cancel()
+
+    @tasks.loop(minutes=10)
+    async def _cleanup_loop(self) -> None:
+        """Remove stale download directories every 10 minutes."""
+        download_service.cleanup_stale(max_age_seconds=600)
+
+    @_cleanup_loop.before_loop
+    async def _before_cleanup(self) -> None:
+        await self.bot.wait_until_ready()
 
     @app_commands.command(name="download", description="Download media from a URL (video, images, files)")
     @app_commands.allowed_installs(guilds=True, users=True)
