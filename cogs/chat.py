@@ -103,6 +103,14 @@ class Chat(commands.Cog):
 
         # Send response
         meta = result.embed_meta
+        discord_files = []
+        if result.attachments:
+            discord_files = [
+                discord.File(fp, filename=fp.name)
+                for fp in result.attachments
+                if fp.is_file() and fp.stat().st_size <= 25 * 1024 * 1024
+            ]
+
         if meta and len(result.text) <= EMBED_DESC_LIMIT:
             emoji, title, color = meta
             embed = discord.Embed(
@@ -110,13 +118,37 @@ class Chat(commands.Cog):
                 description=result.text,
                 color=color,
             )
-            await message.reply(embed=embed, mention_author=False)
+            await message.reply(
+                embed=embed,
+                files=discord_files[:10] if discord_files else [],
+                mention_author=False,
+            )
+            # Send remaining files in batches of 10
+            for i in range(10, len(discord_files), 10):
+                await message.channel.send(files=discord_files[i : i + 10])
         elif len(result.text) <= MSG_LIMIT:
-            await message.reply(result.text, mention_author=False)
+            await message.reply(
+                result.text,
+                files=discord_files[:10] if discord_files else [],
+                mention_author=False,
+            )
+            for i in range(10, len(discord_files), 10):
+                await message.channel.send(files=discord_files[i : i + 10])
         else:
             chunks = [result.text[i : i + MSG_LIMIT] for i in range(0, len(result.text), MSG_LIMIT)]
-            for chunk in chunks:
-                await message.channel.send(chunk)
+            for idx, chunk in enumerate(chunks):
+                if idx == 0 and discord_files:
+                    await message.channel.send(chunk, files=discord_files[:10])
+                    for i in range(10, len(discord_files), 10):
+                        await message.channel.send(files=discord_files[i : i + 10])
+                else:
+                    await message.channel.send(chunk)
+
+        # Clean up downloaded files
+        if result._cleanup_dirs:
+            from services.download_service import cleanup
+            for d in result._cleanup_dirs:
+                cleanup(d)
 
     # ------------------------------------------------------------------
     # Background persist loop — summarize and flush every 5 minutes
