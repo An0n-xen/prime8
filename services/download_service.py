@@ -50,7 +50,6 @@ def _ytdlp_download(url: str, output_dir: Path) -> DownloadResult:
         "outtmpl": outtmpl,
         "quiet": True,
         "no_warnings": True,
-        "max_filesize": MAX_BYTES,
         "noplaylist": True,
         "format": "bv*+ba/b",
     }
