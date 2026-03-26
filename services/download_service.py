@@ -62,6 +62,9 @@ def _ytdlp_download(url: str, output_dir: Path) -> DownloadResult:
         "merge_output_format": "mp4",
     }
 
+    if config.YTDLP_COOKIES_FILE:
+        ydl_opts["cookiefile"] = config.YTDLP_COOKIES_FILE
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
         title = info.get("title", "download") if info else "download"
@@ -168,6 +171,9 @@ def _ytdlp_download_audio(url: str, output_dir: Path) -> DownloadResult:
             }
         ],
     }
+
+    if config.YTDLP_COOKIES_FILE:
+        ydl_opts["cookiefile"] = config.YTDLP_COOKIES_FILE
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)

@@ -112,3 +112,8 @@ class VaultService:
             logger.info("Deleted token for user %s from Vault", user_id)
         except InvalidPath:
             pass
+
+    def get_ytdlp_cookies(self) -> str:
+        """Return the yt-dlp cookies content (Netscape format) from Vault."""
+        data = self.read_secret("prime8")
+        return data.get("ytdlp_cookies", "")

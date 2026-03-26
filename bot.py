@@ -98,6 +98,14 @@ async def main():
         # Load LLM secret from Vault
         config.DEEPINFRA_API_KEY = secret_svc.get_deepinfra_api_key()
 
+        # Load yt-dlp cookies from Vault and write to a temp file
+        ytdlp_cookies = secret_svc.get_ytdlp_cookies()
+        if ytdlp_cookies:
+            cookies_path = config.DOWNLOAD_PATH / ".cookies.txt"
+            cookies_path.write_text(ytdlp_cookies, encoding="utf-8")
+            config.YTDLP_COOKIES_FILE = str(cookies_path)
+            logger.info("Loaded yt-dlp cookies from Vault")
+
         logger.info("Loaded secrets from Vault (prod mode)")
     else:
         from services.local_secret_service import LocalSecretService
