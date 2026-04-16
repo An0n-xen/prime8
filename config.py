@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     ]
 
     BASE_DIR: Path = Path(__file__).parent
+    
 
     @property
     def STATE_PATH(self) -> Path:
