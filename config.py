@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     ]
 
     BASE_DIR: Path = Path(__file__).parent
+    
 
     @property
     def DOWNLOAD_PATH(self) -> Path:
